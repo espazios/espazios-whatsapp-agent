@@ -1,0 +1,20 @@
+{
+  "name": "espazios-whatsapp-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agente de ventas IA por WhatsApp para Espazios (remodelacion y carpinteria a medida).",
+  "type": "module",
+  "scripts": {
+    "generate-quote": "tsx scripts/generate-quote.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "googleapis": "^144.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
