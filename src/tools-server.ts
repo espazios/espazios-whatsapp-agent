@@ -21,7 +21,11 @@ const app = Fastify({ logger: true });
 app.get("/health", async () => ({ ok: true }));
 
 app.post("/tools/generar-cotizacion", async (req, reply) => {
-  const input = req.body as Partial<QuoteInput>;
+  // Kapso puede mandar los argumentos del tool en el body directo o
+  // envueltos en { input: {...} } (asi lo hace con las funciones desplegadas,
+  // ver docs/flows/step-types/agent-node.mdx) — aceptamos ambas formas.
+  const body = req.body as any;
+  const input = (body?.input ?? body) as Partial<QuoteInput>;
   const missing = (
     ["clienteNombre", "ciudad", "tipoProyecto", "metrosCuadrados", "nivelAcabado", "telefono"] as const
   ).filter((field) => input[field] === undefined || input[field] === null || input[field] === "");
