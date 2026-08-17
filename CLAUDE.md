@@ -9,9 +9,19 @@ produccion trabajen con la misma informacion.
 
 ## Estado del proyecto
 
-Fase actual: construyendo la integracion del **cotizador** (Drive -> Sheets -> PDF).
-Aun no hay conexion con WhatsApp, HubSpot ni Calendar — esas integraciones
-siguen el mismo patron (cuenta de servicio + modulo en `src/tools/`).
+Fase actual: cotizador (Drive -> Sheets -> PDF) construido y pendiente de
+credenciales reales; canal de WhatsApp (`src/channel/`) construido sobre
+**Kapso** y pendiente de que exista un proyecto/API key de Kapso. Aun no hay
+orquestador (Agente Supervisor) ni conexion con HubSpot ni Calendar.
+
+**Canal de WhatsApp = Kapso, no Meta Cloud API directo.** Kapso es un BSP
+("WhatsApp for developers") que se encarga de conectar el numero de negocio,
+plantillas y onboarding, y expone el mismo SDK tipado de la Cloud API
+enrutado por su proxy con un solo API key — evita que nosotros construyamos
+cliente HTTP, manejo de plantillas y verificacion de numero desde cero.
+Tambien ofrece un servidor MCP para que un agente (Claude) opere WhatsApp
+directamente como herramientas, ademas del SDK que ya usamos en
+`src/channel/kapso-client.ts`. Doc: https://docs.kapso.ai/docs/introduction
 
 ## Reglas de negocio no negociables
 
@@ -29,6 +39,14 @@ siguen el mismo patron (cuenta de servicio + modulo en `src/tools/`).
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
+- [ ] Cuenta y proyecto de Kapso creados (requiere Meta Business Manager
+      del lado de Espazios) + `KAPSO_API_KEY`, `KAPSO_PHONE_NUMBER_ID`,
+      `KAPSO_WEBHOOK_SECRET`. Para pruebas se puede usar la opcion "Instant
+      Setup" de Kapso (numero de prueba pre-verificado, sin tocar el numero
+      real de Espazios todavia).
+- [ ] Confirmar en el dashboard de Kapso el nombre exacto de la cabecera y
+      el secreto de firma de los webhooks reenviados (ver TODO en
+      `src/channel/webhook.ts`).
 - [ ] ID del archivo de la plantilla del cotizador en Drive (`COTIZADOR_TEMPLATE_ID`).
 - [ ] Estructura real de la plantilla: que celdas/rangos son entradas
       (cliente, ciudad, tipo de proyecto, m2, nivel de acabado...) y cuales
