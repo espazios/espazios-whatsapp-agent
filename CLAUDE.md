@@ -10,18 +10,33 @@ produccion trabajen con la misma informacion.
 ## Estado del proyecto
 
 Fase actual: cotizador (Drive -> Sheets -> PDF) construido y pendiente de
-credenciales reales; canal de WhatsApp (`src/channel/`) construido sobre
-**Kapso** y pendiente de que exista un proyecto/API key de Kapso. Aun no hay
-orquestador (Agente Supervisor) ni conexion con HubSpot ni Calendar.
+credenciales reales; servidor de herramientas (`src/tools-server.ts`)
+expone `/tools/generar-cotizacion` para que lo llame el agent node de
+Kapso. Aun no hay Workflow nuevo creado en Kapso, ni herramientas de
+agendamiento (Calendar) o CRM (HubSpot).
 
-**Canal de WhatsApp = Kapso, no Meta Cloud API directo.** Kapso es un BSP
-("WhatsApp for developers") que se encarga de conectar el numero de negocio,
-plantillas y onboarding, y expone el mismo SDK tipado de la Cloud API
-enrutado por su proxy con un solo API key — evita que nosotros construyamos
-cliente HTTP, manejo de plantillas y verificacion de numero desde cero.
-Tambien ofrece un servidor MCP para que un agente (Claude) opere WhatsApp
-directamente como herramientas, ademas del SDK que ya usamos en
-`src/channel/kapso-client.ts`. Doc: https://docs.kapso.ai/docs/introduction
+**Decision de arquitectura (2026-08-16): la IA vive DENTRO de Kapso, no en
+un servidor nuestro que recibe webhooks.** Espazios ya tiene una Isa en
+produccion — un Workflow de Kapso tipo arbol de decision (IVR). Por pedido
+explicito del usuario, **no se toca ese Workflow**: la version generativa se
+construye como un Workflow NUEVO y separado, con un `agent node` (soporta
+modelos Anthropic/Claude) como cerebro de la conversacion. Kapso recibe y
+manda los mensajes de WhatsApp y mantiene el estado de la conversacion —
+nosotros no. Solo cuando la version nueva este lista y probada se cambia el
+apuntamiento del numero/webhook de produccion de la Isa vieja a la nueva.
+
+Nuestro repo entonces NO es un servidor conversacional — es el proveedor de
+**herramientas de negocio** que el agent node llama (custom webhook tools o
+MCP, ver `docs/flows/step-types/agent-node.mdx` en la doc de Kapso):
+generar cotizacion (construido), agendar cita en Calendar (pendiente),
+sincronizar HubSpot (pendiente). El Workflow nuevo mismo (system prompt,
+nodos, que herramientas usa) se arma en el dashboard de Kapso — el MCP de
+Kapso conectado a esta sesion no expone creacion de Workflows por API.
+
+`kapso-client.ts` (SDK de envio directo) se mantiene para los seguimientos
+programados (§07 del diseno, mensajes que salen sin que el cliente escriba
+primero) — eso si sale desde nuestro lado, no desde el Workflow.
+Doc: https://docs.kapso.ai/docs/introduction
 
 ## Reglas de negocio no negociables
 
@@ -39,14 +54,14 @@ directamente como herramientas, ademas del SDK que ya usamos en
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
-- [ ] Cuenta y proyecto de Kapso creados (requiere Meta Business Manager
-      del lado de Espazios) + `KAPSO_API_KEY`, `KAPSO_PHONE_NUMBER_ID`,
-      `KAPSO_WEBHOOK_SECRET`. Para pruebas se puede usar la opcion "Instant
-      Setup" de Kapso (numero de prueba pre-verificado, sin tocar el numero
-      real de Espazios todavia).
-- [ ] Confirmar en el dashboard de Kapso el nombre exacto de la cabecera y
-      el secreto de firma de los webhooks reenviados (ver TODO en
-      `src/channel/webhook.ts`).
+- [ ] Servidor de herramientas desplegado en una URL publica (o tunel de
+      desarrollo) para que el agent node de Kapso pueda llamarlo —
+      `PUBLIC_BASE_URL` en `.env`.
+- [ ] Crear el Workflow nuevo en el dashboard de Kapso (agent node, system
+      prompt, conectar `/tools/generar-cotizacion` como webhook tool) sin
+      tocar el Workflow de la Isa actual.
+- [ ] `KAPSO_API_KEY` / `KAPSO_PHONE_NUMBER_ID` para cuando se construya el
+      envio de seguimientos programados (`kapso-client.ts`).
 - [ ] ID del archivo de la plantilla del cotizador en Drive (`COTIZADOR_TEMPLATE_ID`).
 - [ ] Estructura real de la plantilla: que celdas/rangos son entradas
       (cliente, ciudad, tipo de proyecto, m2, nivel de acabado...) y cuales

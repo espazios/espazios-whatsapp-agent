@@ -88,6 +88,22 @@ export async function generateQuote(input: QuoteInput): Promise<GeneratedQuote> 
   };
 }
 
+/**
+ * Vuelve a traer los bytes de un PDF ya generado (por su fileId de Drive),
+ * para servirlo cuando el agent node de Kapso llama al tool de cotizacion
+ * y necesita una URL de la que descargar el PDF (send_media). No requiere
+ * que el archivo sea publico en Drive — se descarga con nuestra cuenta de
+ * servicio y se reenvia.
+ */
+export async function getQuotePdfBytes(fileId: string): Promise<Buffer> {
+  const drive = await getDriveClient();
+  const res = await drive.files.get(
+    { fileId, alt: "media" },
+    { responseType: "arraybuffer" }
+  );
+  return Buffer.from(res.data as ArrayBuffer);
+}
+
 async function exportSheetAsPdf(spreadsheetId: string, gid: string): Promise<Buffer> {
   const token = await getBearerToken();
   const params = new URLSearchParams({
