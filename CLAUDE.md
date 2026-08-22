@@ -9,11 +9,24 @@ produccion trabajen con la misma informacion.
 
 ## Estado del proyecto
 
-Fase actual: cotizador (Drive -> Sheets -> PDF) construido y pendiente de
-credenciales reales; servidor de herramientas (`src/tools-server.ts`)
-expone `/tools/generar-cotizacion` para que lo llame el agent node de
-Kapso. Aun no hay Workflow nuevo creado en Kapso, ni herramientas de
-agendamiento (Calendar) o CRM (HubSpot).
+Fase actual: **el Workflow nuevo de Isa v2 ya existe en Kapso y tiene un
+system prompt real y detallado** (ver `docs/isa-v2-system-prompt.md`,
+sincronizado 2026-08-18) — calificacion completa (ciudad + tipo + manejo
+de objecion de presupuesto), FAQ, envio de fotos, agendamiento y prueba
+social con videos de TikTok por torre.
+
+**Alcance real de v1 (segun el prompt en produccion):** califica y agenda
+una sesion con un Ejecutivo Comercial. NO genera cotizacion en PDF — la
+cotizacion se entrega en la sesion humana. Eso significa:
+- `/tools/generar-cotizacion` (`src/tools-server.ts`) esta construido pero
+  **no es una dependencia de este lanzamiento** — queda para una fase
+  futura si se decide automatizar el PDF.
+- El agendamiento de reunion usa un **link de Google Calendar Appointment
+  Schedule** ya existente — no hace falta construir un tool de Calendar
+  API (`agendar_cita`) para eso. Solo el agendamiento de *llamada*
+  telefonica queda como un dato capturado (franja horaria) que un humano
+  ejecuta, sin integracion.
+- `sync_hubspot` sigue pendiente de construir.
 
 **Decision de arquitectura (2026-08-16): la IA vive DENTRO de Kapso, no en
 un servidor nuestro que recibe webhooks.** Espazios ya tiene una Isa en
@@ -54,14 +67,16 @@ Doc: https://docs.kapso.ai/docs/introduction
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
-- [ ] Servidor de herramientas desplegado en una URL publica (o tunel de
-      desarrollo) para que el agent node de Kapso pueda llamarlo —
-      `PUBLIC_BASE_URL` en `.env`.
-- [ ] Crear el Workflow nuevo en el dashboard de Kapso (agent node, system
-      prompt, conectar `/tools/generar-cotizacion` como webhook tool) sin
-      tocar el Workflow de la Isa actual.
+- [ ] `sync_hubspot`: falta construir. Cuando se haga, mapear `presupuesto`
+      (numero exacto, ej. "$15") al rango que espera la propiedad
+      `rango_presupuesto` de HubSpot (ej. "Entre $15 y $30 millones").
+- [ ] Confirmar si la franja horaria de "llamada" en el prompt deberia
+      capturar tambien el dia, no solo el horario (ambiguo hoy).
 - [ ] `KAPSO_API_KEY` / `KAPSO_PHONE_NUMBER_ID` para cuando se construya el
       envio de seguimientos programados (`kapso-client.ts`).
+- [ ] Si mas adelante se decide automatizar el PDF de cotizacion: retomar
+      `COTIZADOR_TEMPLATE_ID`/credenciales de Google pendientes abajo, y
+      desplegar `src/tools-server.ts` en una URL publica.
 - [ ] ID del archivo de la plantilla del cotizador en Drive (`COTIZADOR_TEMPLATE_ID`).
 - [ ] Estructura real de la plantilla: que celdas/rangos son entradas
       (cliente, ciudad, tipo de proyecto, m2, nivel de acabado...) y cuales
