@@ -65,6 +65,27 @@ Doc: https://docs.kapso.ai/docs/introduction
 - Los datos personales del cliente solo se capturan despues de un
   consentimiento explicito (Ley 1581 de 2012 / Habeas Data Colombia).
 
+## Roadmap confirmado (2026-08-18)
+
+La version en produccion de Isa v2 es **MVP** — califica y agenda, sin PDF
+y sin Calendar API real. Prioridades de trabajo, en este orden:
+
+1. **PDF de cotizacion** — retomar `generar_cotizacion`
+   (`src/tools-server.ts`, `src/tools/cotizador/`). Bloqueado por la
+   estructura real de celdas de la plantilla y las credenciales de Google
+   (ver checklist abajo).
+2. **Google Calendar API para agendar sesiones** — reemplaza o complementa
+   el link estatico de Google Calendar Appointment Schedule que usan hoy
+   para reunion; Isa agendaria directo en la conversacion. Pendiente
+   confirmar con el usuario si reemplaza el link o convive con el.
+3. **Agendamiento de llamada con Calendar API** — hoy la llamada solo
+   guarda una franja horaria como texto (sin dia, sin evento real de
+   calendario). Se vuelve un tool propio, "agendamiento de llamada",
+   sobre la misma integracion de Calendar de la prioridad 2.
+
+Cobertura del prompt (alrededores = solo Carpinteria) confirmada como
+intencional por el usuario — no es un error.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 - [ ] `sync_hubspot`: falta construir. Cuando se haga, mapear `presupuesto`
