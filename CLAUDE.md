@@ -74,14 +74,16 @@ y sin Calendar API real. Prioridades de trabajo, en este orden:
    (`src/tools-server.ts`, `src/tools/cotizador/`). Bloqueado por la
    estructura real de celdas de la plantilla y las credenciales de Google
    (ver checklist abajo).
-2. **Google Calendar API para agendar sesiones** — reemplaza o complementa
-   el link estatico de Google Calendar Appointment Schedule que usan hoy
-   para reunion; Isa agendaria directo en la conversacion. Pendiente
-   confirmar con el usuario si reemplaza el link o convive con el.
-3. **Agendamiento de llamada con Calendar API** — hoy la llamada solo
-   guarda una franja horaria como texto (sin dia, sin evento real de
-   calendario). Se vuelve un tool propio, "agendamiento de llamada",
-   sobre la misma integracion de Calendar de la prioridad 2.
+2. **Google Calendar API para agendar sesiones (reunion/meet)** —
+   **reemplaza** el link estatico de Google Calendar Appointment Schedule
+   que usan hoy. Isa maneja Calendar directamente: consulta disponibilidad
+   real y crea el evento (con Google Meet si es virtual) sin que el
+   cliente salga de WhatsApp. Confirmado por el usuario 2026-08-18.
+3. **Agendamiento de llamada con Calendar API** — mismo enfoque
+   (Isa maneja Calendar directamente) aplicado al caso de llamada
+   telefonica, que hoy solo guarda una franja horaria como texto sin dia
+   ni evento real. Se vuelve un tool propio sobre la misma integracion de
+   Calendar de la prioridad 2.
 
 Cobertura del prompt (alrededores = solo Carpinteria) confirmada como
 intencional por el usuario — no es un error.
