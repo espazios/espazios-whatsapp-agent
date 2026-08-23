@@ -112,8 +112,40 @@ cuenta de servicio. Se uso para crear
 **Precios en blanco — el equipo comercial los debe llenar** antes de que
 el estimado ilustrativo funcione de verdad.
 
+## Autenticacion con Google (resuelto 2026-08-23)
+
+`secrets/service-account.json` **no es una cuenta de servicio clasica** —
+el proyecto de Google Cloud (`project-3220a2c1-d15e-4f6b-bec`, "My First
+Project") tiene una politica que bloquea la creacion de llaves de cuenta de
+servicio (`constraints/iam.disableServiceAccountKeyCreation`, no se pudo
+levantar ni siendo dueno del proyecto — permiso denegado). En su lugar se
+uso **Application Default Credentials de usuario**: se creo un Cliente
+OAuth propio (tipo "Aplicacion de escritorio", no el cliente compartido de
+`gcloud` — ese esta bloqueado por Google para scopes de Drive/Sheets/
+Calendar) y se corrio `gcloud auth application-default login` con
+`espazios.co@gmail.com`. El JSON resultante tiene `"type": "authorized_user"`
+en vez de `"type": "service_account"` — `google-auth-library` acepta las
+dos formas de forma transparente, asi que **no hizo falta cambiar nada en
+`google-auth.ts`**. Probado end-to-end con `calcularEstimado()` — funciona.
+
+Implicacion para desplegar en produccion: este archivo de credenciales
+esta atado a la cuenta de usuario `espazios.co@gmail.com`, no a una
+identidad de maquina — copiar el mismo `secrets/service-account.json` al
+entorno de produccion funciona igual, pero si el refresh token se revoca
+o expira hay que repetir el login (no es tan robusto como una llave de
+servicio para un proceso desatendido de larga duracion). Si mas adelante
+la politica del proyecto permite crear llaves de servicio, migrar a eso.
+
+Cliente OAuth usado: `828398821260-86t2omrk0g7dhn08sb6i8d64kvtnte2f.apps.googleusercontent.com`
+(tipo Desktop app, en modo "Testing" con `espazios.co@gmail.com` como test user).
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
+- [ ] **Llenar `precio_desde`** en
+      [Tarifas Ilustrativas - Isa](https://docs.google.com/spreadsheets/d/1p_36FXsl0dSvV3EvDgln2XALR3gTIdji82xsYihx7oc/edit)
+      (9 celdas) — es lo unico que falta para que el estimado ilustrativo
+      funcione de punta a punta (la autenticacion y la lectura ya se
+      probaron y funcionan).
 - [ ] `sync_hubspot`: falta construir. Cuando se haga, mapear `presupuesto`
       (numero exacto, ej. "$15") al rango que espera la propiedad
       `rango_presupuesto` de HubSpot (ej. "Entre $15 y $30 millones").
@@ -121,9 +153,11 @@ el estimado ilustrativo funcione de verdad.
       capturar tambien el dia, no solo el horario (ambiguo hoy).
 - [ ] `KAPSO_API_KEY` / `KAPSO_PHONE_NUMBER_ID` para cuando se construya el
       envio de seguimientos programados (`kapso-client.ts`).
-- [ ] Si mas adelante se decide automatizar el PDF de cotizacion: retomar
-      `COTIZADOR_TEMPLATE_ID`/credenciales de Google pendientes abajo, y
-      desplegar `src/tools-server.ts` en una URL publica.
+- [ ] Desplegar `src/tools-server.ts` en una URL publica real (hoy solo
+      corre local + tunel de desarrollo).
+- [ ] Si mas adelante se decide automatizar el PDF de cotizacion detallado:
+      retomar `COTIZADOR_TEMPLATE_ID` (pendiente, ver abajo) — el estimado
+      ilustrativo de 3 paquetes ya no depende de esto.
 - [ ] ID del archivo de la plantilla del cotizador en Drive (`COTIZADOR_TEMPLATE_ID`).
 - [ ] Estructura real de la plantilla: que celdas/rangos son entradas
       (cliente, ciudad, tipo de proyecto, m2, nivel de acabado...) y cuales
