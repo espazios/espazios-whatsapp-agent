@@ -24,6 +24,20 @@ const app = Fastify({ logger: true });
 
 app.get("/health", async () => ({ ok: true }));
 
+// TODO temporal: diagnostico de fuentes instaladas, quitar despues de
+// resolver el bug de texto invisible en las tarjetas (ver CLAUDE.md).
+app.get("/debug/fonts", async (req, reply) => {
+  const { execFile } = await import("node:child_process");
+  const run = (cmd: string, args: string[]) =>
+    new Promise<string>((resolve) => {
+      execFile(cmd, args, (err, stdout, stderr) => resolve(err ? `ERROR: ${err.message}\n${stderr}` : stdout));
+    });
+  const fcList = await run("fc-list", []);
+  const fcListDejaVu = await run("fc-match", ["DejaVu Sans"]);
+  reply.header("Content-Type", "text/plain");
+  return `fc-list:\n${fcList}\n\nfc-match 'DejaVu Sans':\n${fcListDejaVu}`;
+});
+
 app.post("/tools/generar-cotizacion", async (req, reply) => {
   // Kapso puede mandar los argumentos del tool en el body directo o
   // envueltos en { input: {...} } (asi lo hace con las funciones desplegadas,
