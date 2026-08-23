@@ -107,10 +107,16 @@ permite buscar/leer/crear archivos de Drive directamente sin pasar por la
 cuenta de servicio. Se uso para crear
 [Tarifas Ilustrativas - Isa](https://docs.google.com/spreadsheets/d/1p_36FXsl0dSvV3EvDgln2XALR3gTIdji82xsYihx7oc/edit)
 — hoja limpia y separada de la plantilla operativa, columnas
-`paquete,m2_min,m2_max,precio_desde,notas`, 3 paquetes × 3 rangos de m2
+`paquete,m2_min,m2_max,precio_m2,notas`, 3 paquetes × 3 rangos de m2
 (25-35/36-45/46-55, mismos rangos que la tabla real de mano de obra).
-**Precios en blanco — el equipo comercial los debe llenar** antes de que
-el estimado ilustrativo funcione de verdad.
+
+**Actualizado 2026-08-23 — precios ya cargados y probados end-to-end.**
+La columna `precio_m2` es **precio por metro cuadrado**, no el total (asi
+la cargo el equipo comercial, consistente con como estan las demas tablas
+de tarifas de Espazios) — `pricing.ts` multiplica por el area para dar el
+"Desde $" final. Probado con 40m²: da $25.8M / $32.9M / $43.3M para los 3
+paquetes, casi identico a los precios de referencia de Tervi (competencia)
+para el mismo tamano — buena senal de que el numero es realista.
 
 ## Autenticacion con Google (resuelto 2026-08-23)
 
@@ -141,11 +147,10 @@ Cliente OAuth usado: `828398821260-86t2omrk0g7dhn08sb6i8d64kvtnte2f.apps.googleu
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
-- [ ] **Llenar `precio_desde`** en
-      [Tarifas Ilustrativas - Isa](https://docs.google.com/spreadsheets/d/1p_36FXsl0dSvV3EvDgln2XALR3gTIdji82xsYihx7oc/edit)
-      (9 celdas) — es lo unico que falta para que el estimado ilustrativo
-      funcione de punta a punta (la autenticacion y la lectura ya se
-      probaron y funcionan).
+**Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
+tarifas + render de imagen). Falta conectarlo al agent node de Kapso como
+webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
+
 - [ ] `sync_hubspot`: falta construir. Cuando se haga, mapear `presupuesto`
       (numero exacto, ej. "$15") al rango que espera la propiedad
       `rango_presupuesto` de HubSpot (ej. "Entre $15 y $30 millones").

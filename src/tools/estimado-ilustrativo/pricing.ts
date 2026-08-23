@@ -16,17 +16,19 @@ export interface RangoTarifa {
   paquete: Paquete;
   m2Min: number;
   m2Max: number;
-  precioDesde: number | null;
+  /** Precio POR M2 en ese rango (no el total) — asi esta cargada la tarifa real. */
+  precioM2: number | null;
 }
 
 export interface EstimadoPaquete {
   paquete: Paquete;
+  /** Total "desde $" ya multiplicado por el area — esto es lo que se le muestra al cliente. */
   precioDesde: number | null;
   /** Si el area cayo fuera de los rangos conocidos, se uso el rango mas cercano. */
   aproximado: boolean;
 }
 
-const TARIFAS_RANGE = "A2:D"; // paquete, m2_min, m2_max, precio_desde — sin encabezado
+const TARIFAS_RANGE = "A2:D"; // paquete, m2_min, m2_max, precio_m2 — sin encabezado
 
 export async function calcularEstimado(m2: number): Promise<EstimadoPaquete[]> {
   const rangos = await leerTarifas();
@@ -45,7 +47,7 @@ async function leerTarifas(): Promise<RangoTarifa[]> {
       paquete: row[0] as Paquete,
       m2Min: Number(row[1]),
       m2Max: Number(row[2]),
-      precioDesde: parsePrecio(row[3]),
+      precioM2: parsePrecio(row[3]),
     }));
 }
 
@@ -56,14 +58,18 @@ function estimarParaPaquete(paquete: Paquete, m2: number, rangos: RangoTarifa[])
   }
 
   const exacto = delPaquete.find((r) => m2 >= r.m2Min && m2 <= r.m2Max);
-  if (exacto) return { paquete, precioDesde: exacto.precioDesde, aproximado: false };
+  if (exacto) return { paquete, precioDesde: totalDesde(exacto.precioM2, m2), aproximado: false };
 
   // Fuera de todos los rangos conocidos: usar el rango mas cercano (el mas
   // bajo si el area es menor a todos, el mas alto si es mayor a todos) y
   // marcarlo como aproximado — la plantilla debe dejarlo claro al cliente.
   const ordenado = [...delPaquete].sort((a, b) => a.m2Min - b.m2Min);
   const masCercano = m2 < ordenado[0].m2Min ? ordenado[0] : ordenado[ordenado.length - 1];
-  return { paquete, precioDesde: masCercano.precioDesde, aproximado: true };
+  return { paquete, precioDesde: totalDesde(masCercano.precioM2, m2), aproximado: true };
+}
+
+function totalDesde(precioM2: number | null, m2: number): number | null {
+  return precioM2 === null ? null : Math.round(precioM2 * m2);
 }
 
 function parsePrecio(raw: unknown): number | null {
