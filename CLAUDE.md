@@ -145,6 +145,19 @@ detalle que incluye alguno de estos paquetes?". Arquitectura:
   despues de una reunion con los arquitectos — esto NO debe quedar asi en
   produccion, es solo para probar el flujo mientras tanto.
 
+**Bug encontrado y arreglado 2026-08-23: texto invisible en produccion.**
+Probado en Kapso via WhatsApp real (Sandbox), las imagenes llegaban con las
+formas/colores bien pero **sin texto visible**. Causa: el SVG dependia de
+`font-family: 'Segoe UI'` (solo existe en Windows) — Railway corre Linux
+sin esa fuente ni fallback instalado, asi que el texto se renderizaba
+invisible aunque las formas si (esas no dependen de fuentes). Arreglo:
+se empaca la fuente Inter (descargada de Google Fonts, licencia OFL)
+directo en cada SVG via `@font-face` + base64
+(`assets/fonts/Inter-Regular.ttf`, `assets/fonts/Inter-Bold.ttf`) — ya no
+depende de que el sistema operativo tenga ninguna fuente instalada.
+**Pendiente confirmar** que se vea bien en produccion despues de este fix
+(probado local en Windows, falta la prueba real en Railway/Linux).
+
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
 sobre la tarjeta si existen — si no, deja el espacio reservado con un
