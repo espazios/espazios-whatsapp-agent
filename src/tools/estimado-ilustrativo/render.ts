@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import type { EstimadoPaquete } from "./pricing.js";
 
@@ -21,16 +24,51 @@ const NOMBRES_VISIBLES: Record<string, string> = {
   "Remodelacion completa": "Remodelación completa",
 };
 
+const PAQUETE_SLUGS: Record<string, string> = {
+  "Solo Obra Blanca": "solo-obra-blanca",
+  Intermedio: "intermedio",
+  "Remodelacion completa": "remodelacion-completa",
+};
+
 const WIDTH = 1080;
 const HEIGHT = 1350;
 
-/** Genera la tarjeta de estimado ilustrativo como PNG. */
-export async function renderTarjeta(input: TarjetaInput): Promise<Buffer> {
-  const svg = buildSvg(input);
-  return sharp(Buffer.from(svg)).png().toBuffer();
+// --- Assets (logo, fotos por paquete) ---
+// Se resuelven relativo a este archivo, no al cwd del proceso, para que
+// funcione sin importar desde donde se arranque el servidor.
+const ASSETS_DIR = fileURLToPath(new URL("../../../assets", import.meta.url));
+
+function loadAsset(...segments: string[]): Buffer | null {
+  const filePath = path.join(ASSETS_DIR, ...segments);
+  try {
+    return fs.readFileSync(filePath);
+  } catch {
+    return null;
+  }
 }
 
-function buildSvg(input: TarjetaInput): string {
+const LOGO_BOX = { x: 60, y: 40, w: 420, h: 140 };
+
+/** Genera la tarjeta de estimado ilustrativo como PNG. */
+export async function renderTarjeta(input: TarjetaInput): Promise<Buffer> {
+  const logo = loadAsset("logo.png");
+  const svg = buildSvg(input, { logoPresente: logo !== null });
+  let img = sharp(Buffer.from(svg)).png();
+  if (logo) img = await componerLogo(img, logo);
+  return img.toBuffer();
+}
+
+async function componerLogo(base: sharp.Sharp, logo: Buffer): Promise<sharp.Sharp> {
+  const logoResized = await sharp(logo)
+    .resize({ width: LOGO_BOX.w, height: LOGO_BOX.h, fit: "inside" })
+    .toBuffer();
+  const meta = await sharp(logoResized).metadata();
+  const top = LOGO_BOX.y + Math.round((LOGO_BOX.h - (meta.height ?? LOGO_BOX.h)) / 2);
+  const buffer = await base.toBuffer();
+  return sharp(buffer).composite([{ input: logoResized, left: LOGO_BOX.x, top }]);
+}
+
+function buildSvg(input: TarjetaInput, opts: { logoPresente: boolean }): string {
   const paqueteY = 560;
   const paqueteAltura = 210;
   const paqueteGap = 26;
@@ -51,7 +89,11 @@ function buildSvg(input: TarjetaInput): string {
 
   <!-- Encabezado -->
   <rect width="${WIDTH}" height="220" fill="#1F2E27" />
-  <text x="60" y="100" font-size="52" font-weight="700" fill="#FFFFFF">Espazios</text>
+  ${
+    opts.logoPresente
+      ? ""
+      : `<text x="60" y="100" font-size="52" font-weight="700" fill="#FFFFFF">Espazios</text>`
+  }
   <text x="60" y="150" font-size="28" fill="#B9C9BE">Estimado ilustrativo de tu proyecto</text>
 
   <!-- Datos del cliente -->
@@ -99,17 +141,36 @@ export interface DetalleInput {
   items: string[];
 }
 
-const ITEM_ALTURA = 46;
-const ITEMS_Y_INICIO = 420;
+const FOTO_BOX = { x: 60, y: 415, w: WIDTH - 120, h: 440 };
+const ITEM_ALTURA = 42;
+const ITEMS_Y_INICIO = FOTO_BOX.y + FOTO_BOX.h + 70;
 
 /** Genera la tarjeta de detalle ("que incluye") de un solo paquete, como PNG. */
 export async function renderDetalle(input: DetalleInput): Promise<Buffer> {
-  const altura = ITEMS_Y_INICIO + Math.max(input.items.length, 1) * ITEM_ALTURA + 160;
-  const svg = buildDetalleSvg(input, altura);
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  const logo = loadAsset("logo.png");
+  const foto = loadAsset("paquetes", `${PAQUETE_SLUGS[input.paquete] ?? "paquete"}.jpg`);
+  const altura = ITEMS_Y_INICIO + Math.max(input.items.length, 1) * ITEM_ALTURA + 100;
+
+  const svg = buildDetalleSvg(input, altura, { logoPresente: logo !== null, fotoPresente: foto !== null });
+  let img = sharp(Buffer.from(svg)).png();
+  if (logo) img = await componerLogo(img, logo);
+  if (foto) img = await componerFoto(img, foto);
+  return img.toBuffer();
 }
 
-function buildDetalleSvg(input: DetalleInput, height: number): string {
+async function componerFoto(base: sharp.Sharp, foto: Buffer): Promise<sharp.Sharp> {
+  const fotoResized = await sharp(foto)
+    .resize({ width: FOTO_BOX.w, height: FOTO_BOX.h, fit: "cover" })
+    .toBuffer();
+  const buffer = await base.toBuffer();
+  return sharp(buffer).composite([{ input: fotoResized, left: FOTO_BOX.x, top: FOTO_BOX.y }]);
+}
+
+function buildDetalleSvg(
+  input: DetalleInput,
+  height: number,
+  opts: { logoPresente: boolean; fotoPresente: boolean }
+): string {
   const precioTexto =
     input.precioDesde === null
       ? "Precio disponible pronto"
@@ -121,10 +182,19 @@ function buildDetalleSvg(input: DetalleInput, height: number): string {
           .map(
             (item, i) => `
     <circle cx="76" cy="${ITEMS_Y_INICIO + i * ITEM_ALTURA - 8}" r="5" fill="#B5722E" />
-    <text x="96" y="${ITEMS_Y_INICIO + i * ITEM_ALTURA}" font-size="24" fill="#1F2E27">${escapeXml(item)}</text>`
+    <text x="96" y="${ITEMS_Y_INICIO + i * ITEM_ALTURA}" font-size="22" fill="#1F2E27">${escapeXml(item)}</text>`
           )
           .join("\n")
       : `<text x="60" y="${ITEMS_Y_INICIO}" font-size="22" fill="#8A968D">Detalle disponible pronto — pregunta a tu Ejecutivo Comercial.</text>`;
+
+  // Espacio de la foto: si no hay archivo todavia, se deja el rectangulo
+  // reservado con un aviso discreto — el area no se mueve cuando se agregue
+  // la foto real, solo se cubre.
+  const fotoPlaceholder = opts.fotoPresente
+    ? ""
+    : `
+    <rect x="${FOTO_BOX.x}" y="${FOTO_BOX.y}" width="${FOTO_BOX.w}" height="${FOTO_BOX.h}" rx="14" fill="#E9EFE9" stroke="#D8E2DA" stroke-width="2" />
+    <text x="${FOTO_BOX.x + FOTO_BOX.w / 2}" y="${FOTO_BOX.y + FOTO_BOX.h / 2}" font-size="22" fill="#9AA69C" text-anchor="middle">Foto ilustrativa proximamente</text>`;
 
   return `
 <svg width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -137,13 +207,19 @@ function buildDetalleSvg(input: DetalleInput, height: number): string {
   <rect width="${WIDTH}" height="${height}" fill="#F5F8F5" />
 
   <rect width="${WIDTH}" height="220" fill="#1F2E27" />
-  <text x="60" y="100" font-size="52" font-weight="700" fill="#FFFFFF">Espazios</text>
+  ${
+    opts.logoPresente
+      ? ""
+      : `<text x="60" y="100" font-size="52" font-weight="700" fill="#FFFFFF">Espazios</text>`
+  }
   <text x="60" y="150" font-size="28" fill="#B9C9BE">Que incluye este paquete</text>
 
   <text x="60" y="290" font-size="38" font-weight="700" fill="#1F2E27">${escapeXml(NOMBRES_VISIBLES[input.paquete] ?? input.paquete)}</text>
   <text x="60" y="335" font-size="34" font-weight="700" fill="#B5722E">${escapeXml(precioTexto)}</text>
 
   <line x1="60" y1="375" x2="${WIDTH - 60}" y2="375" stroke="#D8E2DA" stroke-width="2" />
+
+  ${fotoPlaceholder}
 
   ${items}
 

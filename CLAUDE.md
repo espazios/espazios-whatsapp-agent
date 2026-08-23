@@ -133,6 +133,13 @@ detalle que incluye alguno de estos paquetes?". Arquitectura:
   items). **Pendiente: reemplazar con los items reales de Espazios**
   despues de una reunion con los arquitectos — esto NO debe quedar asi en
   produccion, es solo para probar el flujo mientras tanto.
+
+**Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
+archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
+sobre la tarjeta si existen — si no, deja el espacio reservado con un
+placeholder discreto (nunca cambia el layout despues, solo se cubre).
+**Pendiente: el usuario va a cargar `assets/logo.png` y las 3 fotos por
+paquete** — ver `assets/README.md` para nombres/tamanos exactos.
 - `src/tools/estimado-ilustrativo/contenido.ts` — lee esa pestana.
 - `renderDetalle()` en `render.ts` — tarjeta de un solo paquete: nombre,
   precio, lista de items, mismo aviso de "ilustrativo". Si no hay items
