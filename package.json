@@ -14,7 +14,8 @@
     "@kapso/whatsapp-cloud-api": "^0.3.0",
     "dotenv": "^16.4.5",
     "fastify": "^5.1.0",
-    "googleapis": "^144.0.0"
+    "googleapis": "^144.0.0",
+    "sharp": "^0.33.5"
   },
   "devDependencies": {
     "@types/node": "^22.5.0",

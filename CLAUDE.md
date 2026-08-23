@@ -65,15 +65,23 @@ Doc: https://docs.kapso.ai/docs/introduction
 - Los datos personales del cliente solo se capturan despues de un
   consentimiento explicito (Ley 1581 de 2012 / Habeas Data Colombia).
 
-## Roadmap confirmado (2026-08-18)
+## Roadmap confirmado (2026-08-18, Prioridad 1 revisada 2026-08-23)
 
-La version en produccion de Isa v2 es **MVP** — califica y agenda, sin PDF
-y sin Calendar API real. Prioridades de trabajo, en este orden:
+La version en produccion de Isa v2 es **MVP** — califica y agenda, sin
+estimado automatico y sin Calendar API real. Prioridades de trabajo, en
+este orden:
 
-1. **PDF de cotizacion** — retomar `generar_cotizacion`
-   (`src/tools-server.ts`, `src/tools/cotizador/`). Bloqueado por la
-   estructura real de celdas de la plantilla y las credenciales de Google
-   (ver checklist abajo).
+1. **Estimado ilustrativo con 3 paquetes** (reemplaza la idea original de
+   "PDF de cotizacion" — la plantilla operativa del Cotizador resulto ser
+   demasiado detallada para automatizar desde WhatsApp, ver mas abajo).
+   **Construido** en `src/tools/estimado-ilustrativo/` + endpoints en
+   `src/tools-server.ts` (`POST /tools/estimado-ilustrativo`,
+   `GET /tools/estimados/:id`). Genera una imagen (tarjeta PNG, via
+   `sharp`) con nombre, ciudad, proyecto y m² del cliente, y el "Desde $X"
+   de los 3 paquetes (Solo Obra Blanca / Intermedio / Remodelacion
+   completa) — inspirado en el flujo de Tervi (competencia). Bloqueado por
+   credenciales de Google (ver checklist abajo) y por que el equipo
+   comercial llene los precios en la hoja de tarifas (ver abajo).
 2. **Google Calendar API para agendar sesiones (reunion/meet)** —
    **reemplaza** el link estatico de Google Calendar Appointment Schedule
    que usan hoy. Isa maneja Calendar directamente: consulta disponibilidad
@@ -85,8 +93,24 @@ y sin Calendar API real. Prioridades de trabajo, en este orden:
    ni evento real. Se vuelve un tool propio sobre la misma integracion de
    Calendar de la prioridad 2.
 
+`generar_cotizacion` original (`src/tools/cotizador/`, plantilla operativa
+detallada con ~100 items marcables) queda **dormido** — no es lo que
+automatiza Isa. Esa plantilla es la herramienta manual del Ejecutivo
+Comercial durante la sesion real; no se automatiza en esta fase.
+
 Cobertura del prompt (alrededores = solo Carpinteria) confirmada como
 intencional por el usuario — no es un error.
+
+**Hallazgo 2026-08-23:** hay un conector de Google Drive conectado a esta
+sesion (`mcp__75c3cd84-...`), autenticado como `espazios.co@gmail.com` —
+permite buscar/leer/crear archivos de Drive directamente sin pasar por la
+cuenta de servicio. Se uso para crear
+[Tarifas Ilustrativas - Isa](https://docs.google.com/spreadsheets/d/1p_36FXsl0dSvV3EvDgln2XALR3gTIdji82xsYihx7oc/edit)
+— hoja limpia y separada de la plantilla operativa, columnas
+`paquete,m2_min,m2_max,precio_desde,notas`, 3 paquetes × 3 rangos de m2
+(25-35/36-45/46-55, mismos rangos que la tabla real de mano de obra).
+**Precios en blanco — el equipo comercial los debe llenar** antes de que
+el estimado ilustrativo funcione de verdad.
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
