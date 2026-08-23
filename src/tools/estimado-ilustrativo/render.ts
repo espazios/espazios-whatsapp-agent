@@ -47,30 +47,13 @@ function loadAsset(...segments: string[]): Buffer | null {
   }
 }
 
-// El servidor corre en Linux (Railway) sin fuentes del sistema instaladas —
-// si el SVG depende de una fuente instalada (como "Segoe UI", que solo
-// existe en Windows), el texto sale invisible aunque las formas se vean
-// bien. Se empaca la fuente directo en el SVG (@font-face + base64) para
-// que funcione igual sin importar donde corra.
-const FONT_REGULAR = loadAsset("fonts", "Inter-Regular.ttf");
-const FONT_BOLD = loadAsset("fonts", "Inter-Bold.ttf");
-
-function fontFaceCss(): string {
-  if (!FONT_REGULAR || !FONT_BOLD) return ""; // sin fuente empacada, usa el fallback del sistema
-  const reg = FONT_REGULAR.toString("base64");
-  const bold = FONT_BOLD.toString("base64");
-  return `
-    @font-face {
-      font-family: 'Inter';
-      font-weight: 400;
-      src: url(data:font/ttf;base64,${reg}) format('truetype');
-    }
-    @font-face {
-      font-family: 'Inter';
-      font-weight: 700;
-      src: url(data:font/ttf;base64,${bold}) format('truetype');
-    }`;
-}
+// El servidor corre en Linux (Railway). librsvg (el motor de SVG que usa
+// sharp) necesita la fuente instalada a nivel de sistema operativo — el
+// @font-face embebido en el SVG (base64) resulto no ser confiable ahi
+// (limitacion conocida de librsvg, el texto salia como glifos "tofu").
+// La fuente se instala via nixpacks.toml (aptPkgs: fonts-dejavu-core,
+// fonts-liberation) — aca solo se referencia por nombre.
+const FONT_STACK = "'DejaVu Sans', 'Liberation Sans', 'Segoe UI', Arial, sans-serif";
 
 const LOGO_BOX = { x: 60, y: 40, w: 420, h: 140 };
 
@@ -106,8 +89,7 @@ function buildSvg(input: TarjetaInput, opts: { logoPresente: boolean }): string 
 <svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <style>
-      ${fontFaceCss()}
-      text { font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; }
+      text { font-family: ${FONT_STACK}; }
     </style>
   </defs>
 
@@ -226,8 +208,7 @@ function buildDetalleSvg(
 <svg width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <style>
-      ${fontFaceCss()}
-      text { font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; }
+      text { font-family: ${FONT_STACK}; }
     </style>
   </defs>
 

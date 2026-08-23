@@ -147,16 +147,20 @@ detalle que incluye alguno de estos paquetes?". Arquitectura:
 
 **Bug encontrado y arreglado 2026-08-23: texto invisible en produccion.**
 Probado en Kapso via WhatsApp real (Sandbox), las imagenes llegaban con las
-formas/colores bien pero **sin texto visible**. Causa: el SVG dependia de
-`font-family: 'Segoe UI'` (solo existe en Windows) — Railway corre Linux
-sin esa fuente ni fallback instalado, asi que el texto se renderizaba
-invisible aunque las formas si (esas no dependen de fuentes). Arreglo:
-se empaca la fuente Inter (descargada de Google Fonts, licencia OFL)
-directo en cada SVG via `@font-face` + base64
-(`assets/fonts/Inter-Regular.ttf`, `assets/fonts/Inter-Bold.ttf`) — ya no
-depende de que el sistema operativo tenga ninguna fuente instalada.
-**Pendiente confirmar** que se vea bien en produccion despues de este fix
-(probado local en Windows, falta la prueba real en Railway/Linux).
+formas/colores bien pero el texto salia como glifos "tofu" (##) — Railway
+corre Linux sin fuentes del sistema instaladas, y `sharp`/`librsvg` no
+tiene con que dibujar los caracteres.
+
+Primer intento (fallido): empacar la fuente directo en el SVG via
+`@font-face` + base64. **No funciono** — es una limitacion conocida y
+documentada de `librsvg` (soporte de `@font-face` embebido no confiable).
+
+**Arreglo real:** `nixpacks.toml` en la raiz del repo instala fuentes a
+nivel de sistema operativo (`aptPkgs: fontconfig, fonts-dejavu-core,
+fonts-liberation`), y `render.ts` usa `font-family: 'DejaVu Sans',
+'Liberation Sans', ...`. Pendiente confirmar en produccion despues de
+este segundo fix (el primero parecia correcto pero no lo era — probarlo
+de verdad contra Railway, no asumir).
 
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
