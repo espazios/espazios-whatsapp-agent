@@ -9,6 +9,17 @@ produccion trabajen con la misma informacion.
 
 ## Estado del proyecto
 
+**Desplegado en produccion (2026-08-23): `src/tools-server.ts` corre en
+Railway** — `https://espazios-whatsapp-agent-production.up.railway.app`,
+ya no depende de tunel local ni de que una sesion de Claude Code este
+corriendo. Se despliega solo con cada push a `master` (conectado al repo
+de GitHub). Variables de entorno configuradas en el dashboard de Railway:
+`GOOGLE_SERVICE_ACCOUNT_JSON` (contenido del JSON, no la ruta),
+`TARIFAS_ILUSTRATIVAS_SHEET_ID`, `PUBLIC_BASE_URL` (usa la variable
+magica `${{RAILWAY_PUBLIC_DOMAIN}}` de Railway). `PORT` lo inyecta
+Railway solo. Probado end-to-end: `/tools/estimado-ilustrativo` y
+`/tools/detalle-paquete` responden bien con datos reales.
+
 Fase actual: **el Workflow nuevo de Isa v2 ya existe en Kapso y tiene un
 system prompt real y detallado** (ver `docs/isa-v2-system-prompt.md`,
 sincronizado 2026-08-18) — calificacion completa (ciudad + tipo + manejo
@@ -187,8 +198,12 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
       capturar tambien el dia, no solo el horario (ambiguo hoy).
 - [ ] `KAPSO_API_KEY` / `KAPSO_PHONE_NUMBER_ID` para cuando se construya el
       envio de seguimientos programados (`kapso-client.ts`).
-- [ ] Desplegar `src/tools-server.ts` en una URL publica real (hoy solo
-      corre local + tunel de desarrollo).
+- [x] ~~Desplegar `src/tools-server.ts` en una URL publica real~~ — hecho,
+      corre en Railway (ver arriba).
+- [ ] Conectar `generar_estimado_ilustrativo` y `ver_detalle_paquete` como
+      webhook tools en el agent node de Kapso, apuntando a
+      `https://espazios-whatsapp-agent-production.up.railway.app` (URL
+      permanente, ya no hay que actualizarla cada vez).
 - [ ] Si mas adelante se decide automatizar el PDF de cotizacion detallado:
       retomar `COTIZADOR_TEMPLATE_ID` (pendiente, ver abajo) — el estimado
       ilustrativo de 3 paquetes ya no depende de esto.
