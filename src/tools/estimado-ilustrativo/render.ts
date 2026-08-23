@@ -92,6 +92,68 @@ function paqueteCardSvg(p: EstimadoPaquete, y: number, alto: number): string {
   </g>`;
 }
 
+export interface DetalleInput {
+  paquete: string;
+  precioDesde: number | null;
+  aproximado: boolean;
+  items: string[];
+}
+
+const ITEM_ALTURA = 46;
+const ITEMS_Y_INICIO = 420;
+
+/** Genera la tarjeta de detalle ("que incluye") de un solo paquete, como PNG. */
+export async function renderDetalle(input: DetalleInput): Promise<Buffer> {
+  const altura = ITEMS_Y_INICIO + Math.max(input.items.length, 1) * ITEM_ALTURA + 160;
+  const svg = buildDetalleSvg(input, altura);
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+function buildDetalleSvg(input: DetalleInput, height: number): string {
+  const precioTexto =
+    input.precioDesde === null
+      ? "Precio disponible pronto"
+      : `Desde ${formatCOP(input.precioDesde)}${input.aproximado ? "*" : ""}`;
+
+  const items =
+    input.items.length > 0
+      ? input.items
+          .map(
+            (item, i) => `
+    <circle cx="76" cy="${ITEMS_Y_INICIO + i * ITEM_ALTURA - 8}" r="5" fill="#B5722E" />
+    <text x="96" y="${ITEMS_Y_INICIO + i * ITEM_ALTURA}" font-size="24" fill="#1F2E27">${escapeXml(item)}</text>`
+          )
+          .join("\n")
+      : `<text x="60" y="${ITEMS_Y_INICIO}" font-size="22" fill="#8A968D">Detalle disponible pronto — pregunta a tu Ejecutivo Comercial.</text>`;
+
+  return `
+<svg width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      text { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect width="${WIDTH}" height="${height}" fill="#F5F8F5" />
+
+  <rect width="${WIDTH}" height="220" fill="#1F2E27" />
+  <text x="60" y="100" font-size="52" font-weight="700" fill="#FFFFFF">Espazios</text>
+  <text x="60" y="150" font-size="28" fill="#B9C9BE">Que incluye este paquete</text>
+
+  <text x="60" y="290" font-size="38" font-weight="700" fill="#1F2E27">${escapeXml(NOMBRES_VISIBLES[input.paquete] ?? input.paquete)}</text>
+  <text x="60" y="335" font-size="34" font-weight="700" fill="#B5722E">${escapeXml(precioTexto)}</text>
+
+  <line x1="60" y1="375" x2="${WIDTH - 60}" y2="375" stroke="#D8E2DA" stroke-width="2" />
+
+  ${items}
+
+  <text x="60" y="${height - 60}" font-size="18" fill="#8A968D">
+    <tspan x="60" dy="0">*Contenido y precio ilustrativos — se confirman en la visita tecnica</tspan>
+    <tspan x="60" dy="26">y la cotizacion personalizada con tu Ejecutivo Comercial.</tspan>
+  </text>
+</svg>`.trim();
+}
+
 function formatCOP(n: number): string {
   return `$${Math.round(n).toLocaleString("es-CO")}`;
 }

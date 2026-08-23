@@ -3,8 +3,9 @@ import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import { generateQuote, getQuotePdfBytes } from "./tools/cotizador/generate-quote.js";
 import type { QuoteInput } from "./tools/cotizador/field-map.js";
-import { calcularEstimado } from "./tools/estimado-ilustrativo/pricing.js";
-import { renderTarjeta } from "./tools/estimado-ilustrativo/render.js";
+import { calcularEstimado, PAQUETES, type Paquete } from "./tools/estimado-ilustrativo/pricing.js";
+import { renderTarjeta, renderDetalle } from "./tools/estimado-ilustrativo/render.js";
+import { leerContenidoPaquete } from "./tools/estimado-ilustrativo/contenido.js";
 
 /**
  * Servidor de HERRAMIENTAS — no recibe conversaciones de WhatsApp.
@@ -120,6 +121,50 @@ app.post("/tools/estimado-ilustrativo", async (req, reply) => {
   } catch (err) {
     req.log.error({ err }, "Fallo generando el estimado ilustrativo");
     return reply.code(500).send({ error: "No se pudo generar el estimado." });
+  }
+});
+
+interface DetalleInput {
+  paquete: string;
+  m2: number;
+}
+
+app.post("/tools/detalle-paquete", async (req, reply) => {
+  const body = req.body as any;
+  const input = (body?.input ?? body) as Partial<DetalleInput>;
+  const missing = (["paquete", "m2"] as const).filter(
+    (field) => input[field] === undefined || input[field] === null || input[field] === ""
+  );
+  if (missing.length > 0) {
+    return reply.code(400).send({ error: `Faltan campos: ${missing.join(", ")}` });
+  }
+  if (!PAQUETES.includes(input.paquete as Paquete)) {
+    return reply.code(400).send({ error: `paquete debe ser uno de: ${PAQUETES.join(", ")}` });
+  }
+
+  try {
+    const paquete = input.paquete as Paquete;
+    const m2 = Number(input.m2);
+    const [estimado, items] = await Promise.all([
+      calcularEstimado(m2).then((r) => r.find((p) => p.paquete === paquete)!),
+      leerContenidoPaquete(paquete),
+    ]);
+
+    const bytes = await renderDetalle({
+      paquete,
+      precioDesde: estimado.precioDesde,
+      aproximado: estimado.aproximado,
+      items,
+    });
+
+    const id = randomUUID();
+    estimadosGenerados.set(id, { bytes, creadoEn: Date.now() });
+
+    const baseUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+    return { imageUrl: `${baseUrl}/tools/estimados/${id}`, items };
+  } catch (err) {
+    req.log.error({ err }, "Fallo generando el detalle del paquete");
+    return reply.code(500).send({ error: "No se pudo generar el detalle." });
   }
 });
 

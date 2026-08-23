@@ -118,6 +118,22 @@ de tarifas de Espazios) — `pricing.ts` multiplica por el area para dar el
 paquetes, casi identico a los precios de referencia de Tervi (competencia)
 para el mismo tamano — buena senal de que el numero es realista.
 
+**Detalle por paquete ("que incluye"), agregado 2026-08-23.** No va en la
+tarjeta de resumen (se veria muy denso con 3 listas) — es una imagen
+separada que Isa manda **solo si el cliente pregunta por un paquete en
+especifico**, despues de invitarlo con algo como "¿te gustaria ver en
+detalle que incluye alguno de estos paquetes?". Arquitectura:
+- Pestana nueva `Incluye` en la misma hoja de Tarifas — columnas
+  `paquete,item` (una fila por item, no texto largo en una celda — mas
+  facil de editar). **Hoy esta vacia**, el equipo comercial debe cargar
+  los items reales de cada paquete.
+- `src/tools/estimado-ilustrativo/contenido.ts` — lee esa pestana.
+- `renderDetalle()` en `render.ts` — tarjeta de un solo paquete: nombre,
+  precio, lista de items, mismo aviso de "ilustrativo". Si no hay items
+  cargados, muestra un texto de respaldo en vez de una lista vacia.
+- `POST /tools/detalle-paquete` (input: `paquete`, `m2`) en
+  `tools-server.ts` — mismo cache en memoria que el estimado general.
+
 ## Autenticacion con Google (resuelto 2026-08-23)
 
 `secrets/service-account.json` **no es una cuenta de servicio clasica** —
