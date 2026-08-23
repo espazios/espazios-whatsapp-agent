@@ -673,6 +673,11 @@ segura — puedes decir que es un proyecto similar.
 
 ---
 
+## ⚠️ FIN DEL PROMPT — no copiar nada de aquí en adelante en Kapso
+
+Todo lo de abajo (notas de revisión) es documentación interna para
+nosotros, no es parte de las instrucciones de Isa.
+
 ## Notas de revisión (Claude, 2026-08-18)
 
 Comparado con el borrador anterior de este archivo, esta versión (escrita
