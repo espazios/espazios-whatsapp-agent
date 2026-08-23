@@ -125,8 +125,14 @@ especifico**, despues de invitarlo con algo como "¿te gustaria ver en
 detalle que incluye alguno de estos paquetes?". Arquitectura:
 - Pestana nueva `Incluye` en la misma hoja de Tarifas — columnas
   `paquete,item` (una fila por item, no texto largo en una celda — mas
-  facil de editar). **Hoy esta vacia**, el equipo comercial debe cargar
-  los items reales de cada paquete.
+  facil de editar).
+- **Cargada 2026-08-23 con los items de Tervi (competencia) como
+  PLACEHOLDER** — decision explicita del usuario, para no dejar la tarjeta
+  vacia mientras tanto. Kit Basico -> Solo Obra Blanca (5 items), Kit
+  Medio -> Intermedio (13 items), Kit Plus -> Remodelacion completa (14
+  items). **Pendiente: reemplazar con los items reales de Espazios**
+  despues de una reunion con los arquitectos — esto NO debe quedar asi en
+  produccion, es solo para probar el flujo mientras tanto.
 - `src/tools/estimado-ilustrativo/contenido.ts` — lee esa pestana.
 - `renderDetalle()` en `render.ts` — tarjeta de un solo paquete: nombre,
   precio, lista de items, mismo aviso de "ilustrativo". Si no hay items
