@@ -241,6 +241,37 @@ el reorden — de ahi quedo tambien la nota de `celular` (numero de
 WhatsApp del remitente, disponible automaticamente por el canal, nunca
 se pregunta), que si se mantuvo por separado en la seccion 5.
 
+**Prueba en Sandbox 2026-08-24: formato de preguntas confirmado, gap
+encontrado en el momento del correo.** Se reviso la conversacion real
+via el MCP de Kapso (`whatsapp_messages`). Hallazgos:
+- El formato de negrilla + bullets (seccion 10) ya esta pegado en Kapso
+  y funciona — el usuario confirmo que le gusta el resultado tal como
+  salio (aunque Isa no siempre deja el salto de linea en blanco antes de
+  la pregunta, eso no se va a forzar mas).
+- El orden `presupuesto` justo despues de `tipo_proyecto` funciono bien
+  (30 millones paso el filtro de Remodelacion completa sin objecion).
+- El usuario noto que `correo` no se pidio antes del estimado — **no era
+  un bug**, es como esta disenado hoy (`plazo`/`correo` se piden
+  *despues* del estimado, seccion 6.1). El usuario decidio cambiar esto:
+  quiere `plazo` y `correo` recolectados *antes* del estimado (o sea,
+  volver al orden original de 8 datos completo antes de mostrar nada),
+  con el correo pedido explicando que justo despues viene un valor
+  ilustrativo de la cotizacion.
+
+**Cambio 2026-08-24: `plazo` y `correo` se mueven antes del estimado
+ilustrativo.** El disparador de la seccion 6.1 (`generar_estimado_ilustrativo`)
+pasa de "en cuanto tengas `ciudad`, `tipo_proyecto`, `conjunto_o_barrio`
+y `m2`" a "en cuanto tengas los ocho datos completos, correo incluido" —
+o sea, el estimado ahora es lo ultimo que pasa antes del "paso previo"
+de agendamiento (seccion 9), no un paso intermedio. El motivo para pedir
+`correo` (seccion 5) tambien cambia: ya no es solo "para guardar tus
+datos de contacto", ahora anuncia explicitamente que justo despues viene
+un valor ilustrativo de la cotizacion — asi la persona entiende por que
+se le pide el correo justo ahi. Sigue siendo explicito que ese valor
+ilustrativo llega por WhatsApp (imagen), nunca por correo — la
+cotizacion formal la entrega el Ejecutivo Comercial en la sesion. Toca
+las secciones 5, 6.1 y 9 de `docs/isa-v2-system-prompt.md`.
+
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
 sobre la tarjeta si existen — si no, deja el espacio reservado con un
