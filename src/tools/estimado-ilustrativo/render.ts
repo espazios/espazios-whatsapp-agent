@@ -150,8 +150,8 @@ function buildSvg(input: TarjetaInput, opts: { logoPresente: boolean }): string 
 
   <!-- Pie / disclaimer -->
   <text x="60" y="${HEIGHT - 60}" font-size="18" fill="${COLORS.footer}">
-    <tspan x="60" dy="0">*Precios aproximados, no constituyen una cotizacion formal — sujetos a</tspan>
-    <tspan x="60" dy="26">visita tecnica y a la cotizacion personalizada con tu Ejecutivo Comercial.</tspan>
+    <tspan x="60" dy="0">*Precios aproximados, no constituyen una cotizacion formal —</tspan>
+    <tspan x="60" dy="26">sujetos a la cotizacion con tu Ejecutivo Comercial.</tspan>
   </text>
 </svg>`.trim();
 }
@@ -257,8 +257,8 @@ function buildDetalleSvg(
   ${items}
 
   <text x="60" y="${height - 60}" font-size="18" fill="${COLORS.footer}">
-    <tspan x="60" dy="0">*Contenido y precio ilustrativos — se confirman en la visita tecnica</tspan>
-    <tspan x="60" dy="26">y la cotizacion personalizada con tu Ejecutivo Comercial.</tspan>
+    <tspan x="60" dy="0">*Contenido y precio ilustrativos — se confirman en la</tspan>
+    <tspan x="60" dy="26">cotizacion con tu Ejecutivo Comercial.</tspan>
   </text>
 </svg>`.trim();
 }
