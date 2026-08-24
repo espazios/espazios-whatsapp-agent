@@ -155,12 +155,19 @@ Primer intento (fallido): empacar la fuente directo en el SVG via
 `@font-face` + base64. **No funciono** — es una limitacion conocida y
 documentada de `librsvg` (soporte de `@font-face` embebido no confiable).
 
-**Arreglo real:** `nixpacks.toml` en la raiz del repo instala fuentes a
-nivel de sistema operativo (`aptPkgs: fontconfig, fonts-dejavu-core,
-fonts-liberation`), y `render.ts` usa `font-family: 'DejaVu Sans',
-'Liberation Sans', ...`. Pendiente confirmar en produccion despues de
-este segundo fix (el primero parecia correcto pero no lo era — probarlo
-de verdad contra Railway, no asumir).
+Segundo intento (fallido): `nixpacks.toml` con `aptPkgs`. **Tampoco
+funciono** — Railway dejo de usar Nixpacks y ahora usa su propio builder,
+**Railpack** (`railpack-v0.37.0`), que no reconoce `nixpacks.toml` en
+absoluto (rompia el build: "railpack prepare exited with an error").
+Se elimino el archivo.
+
+**Arreglo real:** variable de entorno `RAILPACK_DEPLOY_APT_PACKAGES` en
+Railway (Variables tab), valor `... fontconfig fonts-dejavu-core
+fonts-liberation` (el `...` preserva los paquetes por defecto de
+Railpack) — instala las fuentes en la imagen de runtime, no solo de
+build. `render.ts` usa `font-family: 'DejaVu Sans', 'Liberation Sans',
+...`. Pendiente confirmar en produccion (van dos intentos fallidos antes
+de este — probar de verdad, no asumir).
 
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone

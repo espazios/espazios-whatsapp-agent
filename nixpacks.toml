@@ -1,9 +1,0 @@
-# Instala fuentes a nivel de sistema operativo para que sharp/librsvg
-# pueda renderizar texto en las tarjetas de estimado ilustrativo.
-#
-# El @font-face embebido en el SVG (base64) resulto no ser confiable en
-# librsvg (limitacion conocida) — el texto salia como glifos "tofu" (##).
-# aptPkgs se instala ENCIMA de lo que Nixpacks ya detecta para Node, sin
-# tocar como se instala Node — no rompe el build.
-[phases.setup]
-aptPkgs = ["fontconfig", "fonts-dejavu-core", "fonts-liberation"]
