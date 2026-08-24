@@ -199,9 +199,26 @@ se confirmo en produccion via `POST /tools/estimado-ilustrativo`: texto
 renderiza bien, sin glifos tofu. El endpoint temporal `GET /debug/fonts`
 ya se quito de `tools-server.ts`.
 
-Nota: durante el diagnostico se creo un segundo servicio en Railway como
-plan B (antes de encontrar la causa raiz) — revisar si sigue existiendo
-y borrarlo si ya no se usa, para no pagar/confundir por duplicado.
+(Se planeo crear un segundo servicio en Railway como plan B antes de dar
+con la causa raiz, pero al final no hizo falta — nunca se creo.)
+
+**Bug encontrado y arreglado 2026-08-24: mensaje de texto suelto
+"(completed)".** Visto en una conversacion real de WhatsApp (Yonathan
+Murillo, m2 corregidos de 40 a 60 a mitad de flujo, revisado via el MCP
+de Kapso — `whatsapp_messages`): cuando el cliente corrige un dato ya
+dado (ej. "corrijo, los m2 son 60") *despues* de que Isa ya penso que
+esa etapa habia terminado, Isa manda la imagen actualizada bien (con la
+invitacion de "ver en detalle" como caption, correcto), pero **ademas**
+manda un mensaje de texto aparte que dice literalmente `(completed)` —
+un mensaje suelto y sin sentido para el cliente. El prompt no tenia
+ninguna instruccion para el caso "el cliente corrige un dato ya
+enviado/procesado" — Isa estaba improvisando esa respuesta. **Arreglo:**
+parrafo nuevo al final de la seccion 6.1 en
+`docs/isa-v2-system-prompt.md` — instruye a regenerar y mandar solo la
+imagen (via `send_media`), sin ningun mensaje de texto aparte, y prohibe
+mandar mensajes de una sola palabra/marca de estado suelta. **Pendiente:
+pegar este parrafo en el prompt real de Kapso** (ver nota de
+sincronizacion al inicio de `isa-v2-system-prompt.md`).
 
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone

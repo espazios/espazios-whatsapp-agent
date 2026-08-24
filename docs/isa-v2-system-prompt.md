@@ -5,10 +5,15 @@ no es un borrador de Claude, es el que el usuario dejó configurado en el
 agent node. Se versiona aquí para tener historial de cambios. Última
 sincronización: 2026-08-18.
 
-**Pendiente de pegar en Kapso (2026-08-23):** la sección **6.1** completa
-(nueva) y los 3 ajustes chiquitos en la sección 5 (agregar `m2` al orden
-de recolección, su bullet de pregunta, y su regla de normalización) —
-todo lo demás del archivo ya coincide con lo que está en producción.
+**Confirmado en produccion (2026-08-23):** la sección **6.1** (estimado
+ilustrativo) y los ajustes de `m2` en la sección 5 ya están pegados en
+Kapso — probado end-to-end via WhatsApp real.
+
+**Pendiente de pegar en Kapso (2026-08-24):** el párrafo nuevo agregado
+al final de la sección 6.1 sobre "si el cliente corrige un dato ya
+dado" — arregla el bug donde Isa mandaba un mensaje de texto suelto
+"(completed)" después de regenerar el estimado por una corrección
+(visto en conversación real, ver CLAUDE.md).
 
 Ver notas de revisión al final del archivo.
 
@@ -290,6 +295,19 @@ Si la herramienta falla o no responde, dilo con honestidad ("tuve un
 problema generando el estimado, dame un momento" o similar) y sigue la
 conversación con normalidad — nunca inventes las cifras en texto si la
 imagen no cargó.
+
+**Si el cliente corrige un dato ya dado** (ciudad, tipo de proyecto, m2,
+etc.) después de haber recibido el estimado o el detalle de un paquete —
+por ejemplo "corrijo, son 60 m2" — actualiza el dato guardado y vuelve a
+llamar la herramienta correspondiente (`generar_estimado_ilustrativo` o
+`ver_detalle_paquete`) con el valor corregido. Manda la imagen nueva con
+`send_media` y listo — es tu **única** respuesta a esa corrección. No
+mandes ningún mensaje de texto aparte confirmando que "ya quedó
+actualizado" ni nada por el estilo (ni antes ni después de la imagen) —
+la imagen ya lo confirma. Nunca mandes un mensaje de texto que sea solo
+una palabra o marca de estado suelta (como "listo", "hecho",
+"completado" o similar) — cada mensaje que mandes debe ser una frase con
+sentido dirigida al cliente, o la imagen misma.
 
 ## 7. Cómo es el proceso con Espazios
 
