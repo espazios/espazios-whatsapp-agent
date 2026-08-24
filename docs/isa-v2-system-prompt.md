@@ -20,6 +20,12 @@ Kapso — probado end-to-end via WhatsApp real.
    punto 3 de la sección 6 — estandariza negrilla (un asterisco) y
    salto de línea antes de toda pregunta, y bullets para cualquier
    pregunta con opciones (ya no solo tipo_proyecto).
+3. La nota nueva en la sección 5 sobre `celular` (ya disponible por el
+   canal, no se pregunta).
+
+(2026-08-24: se probó mover `presupuesto` al final del orden de
+recolección — el usuario pidió revertirlo, se queda donde estaba,
+justo después de `tipo_proyecto`. Ver CLAUDE.md.)
 
 Ver notas de revisión al final del archivo.
 
@@ -127,6 +133,9 @@ los dos filtros) son prioritarios. `conjunto_o_barrio`, `m2`, `plazo` y
 `correo` son complementarios: recógelos de forma natural durante la
 conversación y antes de agendar la sesión, sin que se sientan como un
 bloqueo obligatorio para avanzar.
+
+Nota sobre `celular`: es el número de WhatsApp desde el que te escriben
+— ya lo tienes automáticamente por el canal, nunca lo preguntas.
 
 - **conjunto_o_barrio** — ¿En qué conjunto o barrio está la vivienda?
   (texto libre).

@@ -230,6 +230,17 @@ seccion 10 (`docs/isa-v2-system-prompt.md`) y se actualizo el ejemplo
 existente de la seccion 6 (pregunta de tipo_proyecto) para que quede
 consistente. Pendiente pegar en el prompt real de Kapso.
 
+**Nota 2026-08-24: se probo y se revirtio mover `presupuesto` al final
+del orden de recoleccion.** El usuario pidio inicialmente recolectar
+toda la info del proyecto antes de preguntar presupuesto; luego pidio
+volver a dejarlo justo despues de `tipo_proyecto` (su posicion
+original). Orden final, sin cambios respecto al diseno original:
+`nombre`, `ciudad`, `tipo_proyecto`, `presupuesto`, `conjunto_o_barrio`,
+`m2`, `plazo`, `correo`. Revertido con `git revert` del commit que hizo
+el reorden — de ahi quedo tambien la nota de `celular` (numero de
+WhatsApp del remitente, disponible automaticamente por el canal, nunca
+se pregunta), que si se mantuvo por separado en la seccion 5.
+
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
 sobre la tarjeta si existen — si no, deja el espacio reservado con un
