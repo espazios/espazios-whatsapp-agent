@@ -220,6 +220,16 @@ mandar mensajes de una sola palabra/marca de estado suelta. **Pendiente:
 pegar este parrafo en el prompt real de Kapso** (ver nota de
 sincronizacion al inicio de `isa-v2-system-prompt.md`).
 
+**Formato de mensajes estandarizado, 2026-08-24.** El usuario pidio
+consistencia: toda pregunta en negrilla y separada del texto anterior
+por un salto de linea en blanco, y cualquier pregunta con opciones (no
+solo tipo_proyecto) en formato de lista con vinetas. Ojo con la sintaxis
+de WhatsApp: negrilla es un asterisco (`*texto*`), no dos — dos
+asteriscos salen literales en el mensaje, no negrilla. Se agrego a la
+seccion 10 (`docs/isa-v2-system-prompt.md`) y se actualizo el ejemplo
+existente de la seccion 6 (pregunta de tipo_proyecto) para que quede
+consistente. Pendiente pegar en el prompt real de Kapso.
+
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
 sobre la tarjeta si existen — si no, deja el espacio reservado con un
