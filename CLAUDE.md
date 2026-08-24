@@ -161,13 +161,28 @@ funciono** — Railway dejo de usar Nixpacks y ahora usa su propio builder,
 absoluto (rompia el build: "railpack prepare exited with an error").
 Se elimino el archivo.
 
-**Arreglo real:** variable de entorno `RAILPACK_DEPLOY_APT_PACKAGES` en
-Railway (Variables tab), valor `... fontconfig fonts-dejavu-core
-fonts-liberation` (el `...` preserva los paquetes por defecto de
-Railpack) — instala las fuentes en la imagen de runtime, no solo de
-build. `render.ts` usa `font-family: 'DejaVu Sans', 'Liberation Sans',
-...`. Pendiente confirmar en produccion (van dos intentos fallidos antes
-de este — probar de verdad, no asumir).
+Tercer intento (fallido, distinto problema): variable de entorno
+`RAILPACK_DEPLOY_APT_PACKAGES` en Railway, valor `... fontconfig
+fonts-dejavu-core fonts-liberation` (el `...` preserva los paquetes por
+defecto de Railpack). El build seguia fallando con el mismo error
+generico ("railpack prepare exited with an error", ~4-5s, sin detalle) —
+se aislo el problema borrando esa variable por completo: **el build
+seguia fallando igual sin ella**, y el diff completo desde el ultimo
+deploy exitoso era minimo (4 archivos, nada que tocara package.json ni
+config de build). Railway's "Diagnose" automatico tambien fallo
+("Diagnosis failed for this deployment"), y no hay boton de "clear build
+cache" en Settings (solo Delete Service). Conclusion: Railpack estaba
+fallando por algo no relacionado con nuestra config — caja negra sin
+manera de debuggear mas.
+
+**Arreglo real: `Dockerfile` propio (2026-08-24).** Se dejo Railpack por
+completo. `Dockerfile` en la raiz — `node:22-bookworm-slim`, instala
+`fontconfig fonts-dejavu-core fonts-liberation` via `apt-get`, `npm ci`
+(sin `--omit=dev` porque el arranque usa `tsx`, que es devDependency —
+no hay paso de compilacion), `CMD ["npm", "start"]`. En Railway hay que
+cambiar Settings → Build → Builder de "Railpack" a "Dockerfile"
+(dropdown ya lo ofrece). `render.ts` usa `font-family: 'DejaVu Sans',
+'Liberation Sans', ...`. Pendiente confirmar en produccion.
 
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone

@@ -1,0 +1,11 @@
+node_modules
+dist
+tmp
+.env
+.env.local
+*.local
+secrets
+*.key.json
+.git
+docs
+CLAUDE.md
