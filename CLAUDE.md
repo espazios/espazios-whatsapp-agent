@@ -103,6 +103,31 @@ este orden:
    telefonica, que hoy solo guarda una franja horaria como texto sin dia
    ni evento real. Se vuelve un tool propio sobre la misma integracion de
    Calendar de la prioridad 2.
+4. **Seguimiento automatico ~10 min despues de compartir el link/franja
+   de agendamiento** (pedido por el usuario 2026-08-24, ver mas abajo) —
+   pregunta si ya agendo, y si si, explica el proceso (los bullets que
+   antes iban en el "paso previo" obligatorio, ahora se guardan para
+   este momento). Requiere `kapso-client.ts` (seguimientos programados,
+   ya escrito pero dormido) + `KAPSO_API_KEY`/`KAPSO_PHONE_NUMBER_ID`
+   (vacios en `.env`) — el `agent node` no puede hacer esto solo porque
+   solo reacciona cuando el cliente escribe, no puede "despertar" solo
+   despues de un tiempo. Falta ademas decidir como saber si "ya agendo"
+   sin Calendar API (prioridad 2) — probablemente preguntando
+   directamente, no verificando el calendario.
+
+**Cambio de guion 2026-08-24, tras revisar la prueba en Sandbox (ver
+seccion de arriba):** se quito el "paso previo" (mensaje automatico de
+"quien es Espazios" + proceso en bullets) como paso obligatorio antes de
+ofrecer agendar — Isa lo estaba mandando justo despues del estimado,
+antes incluso de invitar a ver el detalle de un paquete, sintiendose
+apurado y guionizado. Ahora: estimado -> invita a ver detalle de
+paquetes (sin cambios) -> cuando el cliente ya no pide mas detalle,
+pregunta corta ("¿tienes alguna duda, o te gustaria que agendemos...?")
+-> si hay dudas sobre Espazios/el proceso, ahi si se responde con las
+secciones 3 y 7 (nunca antes, nunca sin que lo pidan) -> si quiere
+agendar, logistica sin cambios (llamada/reunion/presencial). Tambien se
+agrego a la seccion 10 (tono): variar la palabra de confirmacion,
+"Perfecto" se estaba repitiendo en casi todos los mensajes.
 
 `generar_cotizacion` original (`src/tools/cotizador/`, plantilla operativa
 detallada con ~100 items marcables) queda **dormido** — no es lo que
