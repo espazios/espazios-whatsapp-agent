@@ -230,6 +230,35 @@ seccion 10 (`docs/isa-v2-system-prompt.md`) y se actualizo el ejemplo
 existente de la seccion 6 (pregunta de tipo_proyecto) para que quede
 consistente. Pendiente pegar en el prompt real de Kapso.
 
+**Reorden del flujo de recolección de datos, 2026-08-24.** El usuario
+pidio mover `presupuesto` de ser el 4to dato (justo tras tipo_proyecto)
+a ser el ultimo de los ocho: nombre, ciudad, tipo_proyecto,
+conjunto_o_barrio, m2, plazo, correo, **presupuesto**. Logica de negocio:
+primero se recolecta y asesora toda la informacion del proyecto, y solo
+al final se pregunta presupuesto — si pasa el filtro, se muestra de una
+vez el estimado ilustrativo (ya se tienen todos los demas datos) y ahi
+mismo se invita a agendar con el Ejecutivo Comercial. Si no pasa, sigue
+el manejo de objecion existente (Etapa 1/2, sin cambios en esa logica)
+— si la persona confirma que puede subir presupuesto, ahora se le
+aclara explicitamente que el estimado ilustrativo sirve para ilustrar
+costos, y se muestra igual. El filtro de ciudad + tipo de proyecto
+(Filtro 1) NO cambio de posicion — sigue corriendo primero, es un
+gate duro que puede cerrar la conversacion.
+
+`celular` (numero de WhatsApp del remitente) tambien quedo documentado
+explicitamente como dato disponible automaticamente por el canal — no
+se pregunta, ya se tiene.
+
+Toca secciones 2 (lead caliente), 5 (orden + descripciones), 6 (filtros,
+retitulada de "Filtros (datos prioritarios)" a solo "Filtros"), 6.1
+(condicion de disparo del estimado) y 9 (condicion de disparo del
+agendamiento) de `docs/isa-v2-system-prompt.md`. Es un cambio grande
+que toca secciones no contiguas — se recomendo al usuario reemplazar el
+prompt completo en Kapso en vez de parchear fragmentos sueltos.
+Pendiente pegar en el prompt real de Kapso (junto con los otros 2
+cambios pendientes: correccion de datos / bug "(completed)", y formato
+de preguntas/opciones).
+
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
 sobre la tarjeta si existen — si no, deja el espacio reservado con un
