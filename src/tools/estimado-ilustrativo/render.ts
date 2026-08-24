@@ -33,6 +33,25 @@ const PAQUETE_SLUGS: Record<string, string> = {
 const WIDTH = 1080;
 const HEIGHT = 1350;
 
+// --- Paleta de marca ---
+// Tomada por muestreo directo de assets/logo.png (2026-08-24): el logo real
+// de Espazios usa un verde teal oscuro y un verde salvia — nada de naranja,
+// que era un color arbitrario del primer borrador de esta tarjeta. El
+// encabezado pasa de fondo verde oscuro a fondo blanco (mejor para un logo a
+// color que no esta pensado para fondos oscuros), con una barra de acento en
+// salvia como unico toque de color de marca ahi — principio de jerarquia:
+// un solo acento fuerte, no repetir el mismo verde en todo.
+const COLORS = {
+  ink: "#123B38", // texto fuerte: nombre del cliente, titulos, precios
+  inkMuted: "#4F6B67", // texto secundario: descripciones, meta info
+  sage: "#6FBE94", // acento de marca: barra del encabezado, bullets, detalle de tarjetas
+  sageTint: "#EAF6EF", // fondo suave para placeholders/badges
+  bgPage: "#F6FAF8", // fondo de la tarjeta (fuera de las cards blancas)
+  bgCard: "#FFFFFF", // fondo del encabezado y de las cards de paquete
+  border: "#DCEAE1", // bordes y lineas divisorias
+  footer: "#7C8D88", // texto de pie de pagina / disclaimers
+} as const;
+
 // --- Assets (logo, fotos por paquete) ---
 // Se resuelven relativo a este archivo, no al cwd del proceso, para que
 // funcione sin importar desde donde se arranque el servidor.
@@ -50,12 +69,17 @@ function loadAsset(...segments: string[]): Buffer | null {
 // El servidor corre en Linux (Railway). librsvg (el motor de SVG que usa
 // sharp) necesita la fuente instalada a nivel de sistema operativo — el
 // @font-face embebido en el SVG (base64) resulto no ser confiable ahi
-// (limitacion conocida de librsvg, el texto salia como glifos "tofu").
-// La fuente se instala via nixpacks.toml (aptPkgs: fonts-dejavu-core,
+// (limitacion conocida de librsvg, el texto salia como glifos "tofu"). La
+// fuente se instala via el Dockerfile propio (apt: fonts-dejavu-core,
 // fonts-liberation) — aca solo se referencia por nombre.
 const FONT_STACK = "'DejaVu Sans', 'Liberation Sans', 'Segoe UI', Arial, sans-serif";
 
-const LOGO_BOX = { x: 60, y: 40, w: 420, h: 140 };
+// h controla el tamano real (fit:"inside" lo limita por altura); w solo
+// pone un tope maximo. El logo real es panoramico (~2.5:1 icono+wordmark),
+// asi que h=100 dejaba antes suficiente aire respecto al subtitulo de abajo.
+const LOGO_BOX = { x: 60, y: 40, w: 320, h: 100 };
+const HEADER_HEIGHT = 220;
+const HEADER_ACCENT_HEIGHT = 6;
 
 /** Genera la tarjeta de estimado ilustrativo como PNG. */
 export async function renderTarjeta(input: TarjetaInput): Promise<Buffer> {
@@ -76,6 +100,19 @@ async function componerLogo(base: sharp.Sharp, logo: Buffer): Promise<sharp.Shar
   return sharp(buffer).composite([{ input: logoResized, left: LOGO_BOX.x, top }]);
 }
 
+/** Encabezado compartido: fondo blanco + logo (o texto de respaldo) + barra de acento. */
+function encabezadoSvg(subtitulo: string, opts: { logoPresente: boolean }): string {
+  return `
+  <rect width="${WIDTH}" height="${HEADER_HEIGHT}" fill="${COLORS.bgCard}" />
+  <rect x="0" y="${HEADER_HEIGHT}" width="${WIDTH}" height="${HEADER_ACCENT_HEIGHT}" fill="${COLORS.sage}" />
+  ${
+    opts.logoPresente
+      ? ""
+      : `<text x="60" y="100" font-size="52" font-weight="700" fill="${COLORS.ink}">Espazios</text>`
+  }
+  <text x="60" y="185" font-size="26" fill="${COLORS.inkMuted}">${escapeXml(subtitulo)}</text>`;
+}
+
 function buildSvg(input: TarjetaInput, opts: { logoPresente: boolean }): string {
   const paqueteY = 560;
   const paqueteAltura = 210;
@@ -93,33 +130,26 @@ function buildSvg(input: TarjetaInput, opts: { logoPresente: boolean }): string 
     </style>
   </defs>
 
-  <rect width="${WIDTH}" height="${HEIGHT}" fill="#F5F8F5" />
+  <rect width="${WIDTH}" height="${HEIGHT}" fill="${COLORS.bgPage}" />
 
-  <!-- Encabezado -->
-  <rect width="${WIDTH}" height="220" fill="#1F2E27" />
-  ${
-    opts.logoPresente
-      ? ""
-      : `<text x="60" y="100" font-size="52" font-weight="700" fill="#FFFFFF">Espazios</text>`
-  }
-  <text x="60" y="150" font-size="28" fill="#B9C9BE">Estimado ilustrativo de tu proyecto</text>
+  ${encabezadoSvg("Estimado ilustrativo de tu proyecto", opts)}
 
   <!-- Datos del cliente -->
-  <g font-size="26" fill="#1F2E27">
+  <g font-size="26" fill="${COLORS.ink}">
     <text x="60" y="280" font-weight="700">${escapeXml(input.nombre)}</text>
-    <text x="60" y="320" fill="#4B594F">${escapeXml(input.proyecto)} · ${escapeXml(input.ciudad)}</text>
-    <text x="60" y="360" fill="#4B594F">${input.m2} m² area privada</text>
+    <text x="60" y="320" fill="${COLORS.inkMuted}">${escapeXml(input.proyecto)} · ${escapeXml(input.ciudad)}</text>
+    <text x="60" y="360" fill="${COLORS.inkMuted}">${input.m2} m² area privada</text>
   </g>
 
-  <line x1="60" y1="400" x2="${WIDTH - 60}" y2="400" stroke="#D8E2DA" stroke-width="2" />
+  <line x1="60" y1="400" x2="${WIDTH - 60}" y2="400" stroke="${COLORS.border}" stroke-width="2" />
 
-  <text x="60" y="470" font-size="30" font-weight="700" fill="#1F2E27">Estos son tus 3 paquetes</text>
-  <text x="60" y="505" font-size="22" fill="#4B594F">Elige el que mas se ajuste a lo que buscas</text>
+  <text x="60" y="470" font-size="30" font-weight="700" fill="${COLORS.ink}">Estos son tus 3 paquetes</text>
+  <text x="60" y="505" font-size="22" fill="${COLORS.inkMuted}">Elige el que mas se ajuste a lo que buscas</text>
 
   ${tarjetas}
 
   <!-- Pie / disclaimer -->
-  <text x="60" y="${HEIGHT - 60}" font-size="18" fill="#8A968D">
+  <text x="60" y="${HEIGHT - 60}" font-size="18" fill="${COLORS.footer}">
     <tspan x="60" dy="0">*Precios aproximados, no constituyen una cotizacion formal — sujetos a</tspan>
     <tspan x="60" dy="26">visita tecnica y a la cotizacion personalizada con tu Ejecutivo Comercial.</tspan>
   </text>
@@ -135,10 +165,11 @@ function paqueteCardSvg(p: EstimadoPaquete, y: number, alto: number): string {
 
   return `
   <g>
-    <rect x="60" y="${y}" width="${WIDTH - 120}" height="${alto}" rx="18" fill="#FFFFFF" stroke="#E2EAE3" stroke-width="2" />
-    <text x="92" y="${y + 52}" font-size="30" font-weight="700" fill="#1F2E27">${escapeXml(NOMBRES_VISIBLES[p.paquete] ?? p.paquete)}</text>
-    <text x="92" y="${y + 90}" font-size="22" fill="#4B594F">${escapeXml(descripcion)}</text>
-    <text x="92" y="${y + alto - 40}" font-size="42" font-weight="700" fill="#B5722E">${escapeXml(precioTexto)}</text>
+    <rect x="60" y="${y}" width="${WIDTH - 120}" height="${alto}" rx="18" fill="${COLORS.bgCard}" stroke="${COLORS.border}" stroke-width="2" />
+    <rect x="60" y="${y}" width="6" height="${alto}" rx="3" fill="${COLORS.sage}" />
+    <text x="92" y="${y + 52}" font-size="30" font-weight="700" fill="${COLORS.ink}">${escapeXml(NOMBRES_VISIBLES[p.paquete] ?? p.paquete)}</text>
+    <text x="92" y="${y + 90}" font-size="22" fill="${COLORS.inkMuted}">${escapeXml(descripcion)}</text>
+    <text x="92" y="${y + alto - 40}" font-size="42" font-weight="700" fill="${COLORS.ink}">${escapeXml(precioTexto)}</text>
   </g>`;
 }
 
@@ -189,11 +220,11 @@ function buildDetalleSvg(
       ? input.items
           .map(
             (item, i) => `
-    <circle cx="76" cy="${ITEMS_Y_INICIO + i * ITEM_ALTURA - 8}" r="5" fill="#B5722E" />
-    <text x="96" y="${ITEMS_Y_INICIO + i * ITEM_ALTURA}" font-size="22" fill="#1F2E27">${escapeXml(item)}</text>`
+    <circle cx="76" cy="${ITEMS_Y_INICIO + i * ITEM_ALTURA - 8}" r="5" fill="${COLORS.sage}" />
+    <text x="96" y="${ITEMS_Y_INICIO + i * ITEM_ALTURA}" font-size="22" fill="${COLORS.ink}">${escapeXml(item)}</text>`
           )
           .join("\n")
-      : `<text x="60" y="${ITEMS_Y_INICIO}" font-size="22" fill="#8A968D">Detalle disponible pronto — pregunta a tu Ejecutivo Comercial.</text>`;
+      : `<text x="60" y="${ITEMS_Y_INICIO}" font-size="22" fill="${COLORS.footer}">Detalle disponible pronto — pregunta a tu Ejecutivo Comercial.</text>`;
 
   // Espacio de la foto: si no hay archivo todavia, se deja el rectangulo
   // reservado con un aviso discreto — el area no se mueve cuando se agregue
@@ -201,8 +232,8 @@ function buildDetalleSvg(
   const fotoPlaceholder = opts.fotoPresente
     ? ""
     : `
-    <rect x="${FOTO_BOX.x}" y="${FOTO_BOX.y}" width="${FOTO_BOX.w}" height="${FOTO_BOX.h}" rx="14" fill="#E9EFE9" stroke="#D8E2DA" stroke-width="2" />
-    <text x="${FOTO_BOX.x + FOTO_BOX.w / 2}" y="${FOTO_BOX.y + FOTO_BOX.h / 2}" font-size="22" fill="#9AA69C" text-anchor="middle">Foto ilustrativa proximamente</text>`;
+    <rect x="${FOTO_BOX.x}" y="${FOTO_BOX.y}" width="${FOTO_BOX.w}" height="${FOTO_BOX.h}" rx="14" fill="${COLORS.sageTint}" stroke="${COLORS.border}" stroke-width="2" />
+    <text x="${FOTO_BOX.x + FOTO_BOX.w / 2}" y="${FOTO_BOX.y + FOTO_BOX.h / 2}" font-size="22" fill="${COLORS.inkMuted}" text-anchor="middle">Foto ilustrativa proximamente</text>`;
 
   return `
 <svg width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -212,26 +243,20 @@ function buildDetalleSvg(
     </style>
   </defs>
 
-  <rect width="${WIDTH}" height="${height}" fill="#F5F8F5" />
+  <rect width="${WIDTH}" height="${height}" fill="${COLORS.bgPage}" />
 
-  <rect width="${WIDTH}" height="220" fill="#1F2E27" />
-  ${
-    opts.logoPresente
-      ? ""
-      : `<text x="60" y="100" font-size="52" font-weight="700" fill="#FFFFFF">Espazios</text>`
-  }
-  <text x="60" y="150" font-size="28" fill="#B9C9BE">Que incluye este paquete</text>
+  ${encabezadoSvg("Que incluye este paquete", opts)}
 
-  <text x="60" y="290" font-size="38" font-weight="700" fill="#1F2E27">${escapeXml(NOMBRES_VISIBLES[input.paquete] ?? input.paquete)}</text>
-  <text x="60" y="335" font-size="34" font-weight="700" fill="#B5722E">${escapeXml(precioTexto)}</text>
+  <text x="60" y="290" font-size="38" font-weight="700" fill="${COLORS.ink}">${escapeXml(NOMBRES_VISIBLES[input.paquete] ?? input.paquete)}</text>
+  <text x="60" y="335" font-size="34" font-weight="700" fill="${COLORS.ink}">${escapeXml(precioTexto)}</text>
 
-  <line x1="60" y1="375" x2="${WIDTH - 60}" y2="375" stroke="#D8E2DA" stroke-width="2" />
+  <line x1="60" y1="375" x2="${WIDTH - 60}" y2="375" stroke="${COLORS.border}" stroke-width="2" />
 
   ${fotoPlaceholder}
 
   ${items}
 
-  <text x="60" y="${height - 60}" font-size="18" fill="#8A968D">
+  <text x="60" y="${height - 60}" font-size="18" fill="${COLORS.footer}">
     <tspan x="60" dy="0">*Contenido y precio ilustrativos — se confirman en la visita tecnica</tspan>
     <tspan x="60" dy="26">y la cotizacion personalizada con tu Ejecutivo Comercial.</tspan>
   </text>

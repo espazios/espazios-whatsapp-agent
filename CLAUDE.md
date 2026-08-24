@@ -245,8 +245,39 @@ se pregunta), que si se mantuvo por separado en la seccion 5.
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
 sobre la tarjeta si existen — si no, deja el espacio reservado con un
 placeholder discreto (nunca cambia el layout despues, solo se cubre).
-**Pendiente: el usuario va a cargar `assets/logo.png` y las 3 fotos por
-paquete** — ver `assets/README.md` para nombres/tamanos exactos.
+**Pendiente: faltan las 3 fotos por paquete** — ver `assets/README.md`
+para nombres/tamanos exactos. `logo.png` **ya se cargo**, ver mas abajo.
+
+**Logo real cargado + rediseno de colores, 2026-08-24.** El usuario
+mando el logo real de Espazios (`Logo color EZ-02.png`, PNG con canal
+alfa/transparencia real confirmado por muestreo — no fondo blanco
+"horneado", solo se veia blanco en el visor del chat). Guardado como
+`assets/logo.png`, reescalado de 23622×9449px @600dpi (archivo de
+impresion) a 1600×640px (~50KB) — de sobra para el tamano que ocupa en
+la tarjeta.
+
+El header de la tarjeta pasa de **fondo verde oscuro** (`#1F2E27`) a
+**fondo blanco** — pedido explicito del usuario, porque un logo a color
+no esta pensado para ir sobre fondo oscuro. Aprovechando el cambio, se
+redisenio toda la paleta de la tarjeta con principios de UX/diseno:
+colores tomados por **muestreo directo de los pixeles del logo**
+(`node -e` con `sharp`, no a ojo) — sale un teal oscuro
+(`#123B38`-ish, del wordmark) y un verde salvia (`#6FBE94`-ish, del
+icono). El naranja (`#B5722E`) que tenia el precio en el primer
+borrador era un color arbitrario sin relacion con la marca — se
+reemplazo por el teal oscuro (mismo color que los titulos, maxima
+jerarquia/contraste) y el salvia quedo como **unico acento de color**
+(barra bajo el header, franja izquierda en cada card de paquete,
+bullets del detalle) — principio de "un solo acento fuerte" en vez de
+repetir el mismo verde en todo. Paleta completa en el objeto `COLORS`
+al inicio de `render.ts`.
+
+Verificado visualmente generando PNGs de prueba localmente antes de
+subir (`npx tsx` con un script temporal, borrado despues) — encontro y
+corrigio un bug de layout: el logo real (icono+wordmark, panoramico
+~2.5:1) es mas alto de lo que el `LOGO_BOX` original preveia, y su
+wordmark se solapaba con el subtitulo de abajo. Ajustado `LOGO_BOX` (mas
+chico, h:100) y la posicion del subtitulo (y:150 → y:185).
 - `src/tools/estimado-ilustrativo/contenido.ts` — lee esa pestana.
 - `renderDetalle()` en `render.ts` — tarjeta de un solo paquete: nombre,
   precio, lista de items, mismo aviso de "ilustrativo". Si no hay items

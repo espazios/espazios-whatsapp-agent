@@ -5,10 +5,12 @@ solo (`src/tools/estimado-ilustrativo/render.ts`) y aparecen en la
 proxima tarjeta generada, sin tocar nada mas. Mientras no existan, las
 tarjetas se generan igual con un placeholder discreto en su lugar.
 
-- `logo.png` — logo de Espazios, fondo transparente recomendado. Se
-  ubica en el encabezado oscuro de ambas tarjetas (resumen y detalle).
-  Tamano sugerido: ~600×250px o proporcion similar (se ajusta
-  automaticamente, sin recortar).
+- `logo.png` — **ya cargado (2026-08-24)**, logo real de Espazios a
+  color con fondo transparente. Se ubica en el encabezado blanco de
+  ambas tarjetas (resumen y detalle) — el encabezado se redisenio de
+  verde oscuro a blanco porque el logo a color no esta pensado para
+  fondo oscuro. Paleta de la tarjeta tomada por muestreo del logo (ver
+  `COLORS` en `render.ts`).
 
 - `paquetes/solo-obra-blanca.jpg` — foto ilustrativa del paquete "Solo
   Obra Blanca", en la tarjeta de detalle.
