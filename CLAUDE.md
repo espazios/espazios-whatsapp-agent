@@ -175,14 +175,33 @@ cache" en Settings (solo Delete Service). Conclusion: Railpack estaba
 fallando por algo no relacionado con nuestra config — caja negra sin
 manera de debuggear mas.
 
-**Arreglo real: `Dockerfile` propio (2026-08-24).** Se dejo Railpack por
-completo. `Dockerfile` en la raiz — `node:22-bookworm-slim`, instala
+Se cambio a `Dockerfile` propio (`node:22-bookworm-slim`, instala
 `fontconfig fonts-dejavu-core fonts-liberation` via `apt-get`, `npm ci`
-(sin `--omit=dev` porque el arranque usa `tsx`, que es devDependency —
-no hay paso de compilacion), `CMD ["npm", "start"]`. En Railway hay que
-cambiar Settings → Build → Builder de "Railpack" a "Dockerfile"
-(dropdown ya lo ofrece). `render.ts` usa `font-family: 'DejaVu Sans',
-'Liberation Sans', ...`. Pendiente confirmar en produccion.
+sin `--omit=dev` porque el arranque usa `tsx` que es devDependency, no
+hay paso de compilacion) — pero el build **seguia fallando** con un error
+totalmente distinto y mucho mas especifico: `fsutil.NewFS(.../snapshot
+-target-unpack/https:/github.com/espazios/espazios-whatsapp-agent):
+resolve : lstat .../snapshot-target-unpack/https:: no such file or
+directory`. Pasaba en la etapa de "unpack" del snapshot, **antes** de
+que Railpack/Dockerfile entraran en juego — confirmaba que no era nada
+de nuestro codigo/config.
+
+**Causa raiz real, encontrada 2026-08-24 via el bot de soporte de
+Railway (Community):** el campo **Settings → Source → Root Directory**
+del servicio estaba puesto como `https://github.com/espazios/espazios-
+whatsapp-agent` (la URL completa del repo) en vez de vacio — resto del
+lio de reconexion del GitHub App del dia anterior. Railway usaba ese
+valor como ruta de archivos durante el unpack del snapshot, de ahi el
+`snapshot-target-unpack/https:/...`. **Arreglo: vaciar ese campo**
+(el codigo esta en la raiz del repo). Con eso + el `Dockerfile` propio
+(se dejo, ya no depende de Railpack para las fuentes), el build paso y
+se confirmo en produccion via `POST /tools/estimado-ilustrativo`: texto
+renderiza bien, sin glifos tofu. El endpoint temporal `GET /debug/fonts`
+ya se quito de `tools-server.ts`.
+
+Nota: durante el diagnostico se creo un segundo servicio en Railway como
+plan B (antes de encontrar la causa raiz) — revisar si sigue existiendo
+y borrarlo si ya no se usa, para no pagar/confundir por duplicado.
 
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
