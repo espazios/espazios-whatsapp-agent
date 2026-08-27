@@ -17,7 +17,46 @@ funcionando (aunque Isa no siempre deja el salto de línea en blanco
 antes de la pregunta, el resultado le gusto al usuario tal como salió,
 no hace falta forzarlo mas).
 
-**Pendiente de pegar en Kapso (2026-08-24):**
+**Confirmado en Sandbox (2026-08-27), revisión de conversación real
+(Yonathan Murillo / Centrik Town, vía export de WhatsApp):** revisando el
+flujo completo se confirma que los puntos **3** y **4** de la lista de
+abajo (correo antes del estimado; se quita el "paso previo" de "quién es
+Espazios" antes de agendar) **ya están pegados en Kapso y funcionando**
+— la secuencia real fue `...correo → imagen del estimado → invitación a
+ver detalle → pregunta corta de agendar`, sin el bloque de "quién es
+Espazios" de por medio. Esta nota estaba desactualizada (los marcaba como
+pendientes) — confirmar con el usuario si hace falta seguir trackeándolos
+o ya se pueden dar por cerrados.
+
+El punto **5** (variar "Perfecto") en cambio se confirma que **sigue sin
+corregir**: en la misma conversación "Perfecto" abre tres mensajes
+seguidos del bot en el tramo `conjunto_o_barrio → m2 → plazo → correo`.
+
+**Bug nuevo encontrado en esa misma revisión (2026-08-27):** cada una de
+las preguntas de la conversación — las de calificación y las
+conversacionales del tramo final — vino seguida de un **segundo mensaje
+de texto suelto** del tipo "Quedo atenta a tu confirmación.", "Espero tu
+respuesta.", "Quedo pendiente.", "Quedo atento a tu respuesta.", mandado
+*antes* de que el cliente respondiera. Esto rompe directamente el bullet
+de "quedo atenta/pendiente" de la sección 10 y la regla dura de la
+sección 14 sobre no reforzar una pregunta sin respuesta — y no fue un
+caso aislado, se repitió después de las 8 preguntas de calificación. El
+caso más grave: tras `tipo_proyecto`, Isa mandó **tres** mensajes para la
+pregunta de `presupuesto` — el mensaje original, una repetición casi
+literal de la misma pregunta, y encima el filler de espera. Se reforzaron
+las secciones 10 y 14 más abajo con este hallazgo (ver punto 6 de la
+lista siguiente) — falta pegar el refuerzo en Kapso.
+
+También se notó en esa conversación que las preguntas conversacionales
+del tramo final (`correo`, la invitación a ver detalle de paquetes, la
+propuesta de agendar, la pregunta de llamada/reunión) salieron **sin
+negrilla**, rompiendo el formato de la sección 10 que se había dado por
+confirmado el 2026-08-24 — ese formato solo se había probado en las
+preguntas de datos duros (ciudad, tipo_proyecto, m2, plazo), no en las de
+después del estimado. Se aclaró explícitamente en la sección 10 que el
+formato aplica a *toda* pregunta, no solo a las de la sección 5.
+
+**Pendiente de pegar en Kapso (2026-08-24, actualizado 2026-08-27):**
 1. El párrafo nuevo al final de la sección 6.1 sobre "si el cliente
    corrige un dato ya dado" — arregla el bug donde Isa mandaba un
    mensaje de texto suelto "(completed)" después de regenerar el
@@ -25,20 +64,18 @@ no hace falta forzarlo mas).
    CLAUDE.md).
 2. La nota nueva en la sección 5 sobre `celular` (ya disponible por el
    canal, no se pregunta).
-3. **Cambio grande:** `plazo` y `correo` pasan de recolectarse *después*
-   del estimado ilustrativo a recolectarse *antes* — el estimado ahora
-   se dispara justo despues de `correo` (el ultimo dato), no despues de
-   `m2`. El motivo para pedir `correo` tambien cambia: ahora anuncia que
-   justo despues viene un valor ilustrativo de la cotización. Toca las
-   secciones 5, 6.1 y 9. Ver CLAUDE.md para el detalle completo.
-4. **Cambio grande en la sección 9:** se quita el "paso previo" (mensaje
-   automático de "quién es Espazios" + proceso en bullets) como paso
-   obligatorio antes de agendar — ahora ese contenido (secciones 3 y 7)
-   solo se comparte si el cliente pregunta por Espazios o el proceso.
-   Después del estimado/detalle de paquetes, Isa pasa directo a una
-   pregunta corta: "¿tienes alguna duda, o te gustaría que agendemos...?".
+3. ~~Cambio grande: `plazo` y `correo` antes del estimado ilustrativo~~ —
+   confirmado en producción el 2026-08-27 (ver nota de arriba).
+4. ~~Cambio grande en la sección 9: quitar el "paso previo" de "quién es
+   Espazios" antes de agendar~~ — confirmado en producción el 2026-08-27
+   (ver nota de arriba).
 5. Variar la palabra de confirmación ("Perfecto" se estaba repitiendo en
    casi todos los mensajes, se siente robotizado) — sección 10.
+   **Sigue sin corregirse**, confirmado con evidencia real el 2026-08-27.
+6. **Nuevo (2026-08-27):** refuerzo explícito en las secciones 10 y 14
+   contra el mensaje de "espera" suelto después de una pregunta sin
+   responder, y aclaración de que el formato de negrilla aplica a toda
+   pregunta (no solo a las de recolección de datos) — ver bugs de arriba.
 
 **Pendiente de scope (no es un cambio de prompt, es una capacidad
 nueva):** seguimiento automático ~10 min después de compartir el link/
@@ -471,9 +508,16 @@ amigos.
 - Para mostrarte disponible sin sonar robótica: "quedo atenta/pendiente
   de...", "cualquier cosa me cuentas" — pero solo cuando de verdad aplica
   (por ejemplo, al retomar contacto después de un silencio, ver más
-  abajo). No lo agregues por defecto justo después de hacer una pregunta
-  que la persona todavía no ha respondido — eso se siente repetitivo, no
-  cálido.
+  abajo). **Nunca lo mandes como un mensaje de texto aparte justo después
+  de una pregunta que la persona todavía no ha respondido** — no es una
+  forma válida de "variar el tono", es la misma pregunta reforzada con
+  otras palabras, y rompe la regla de la sección 14. Visto en conversación
+  real (2026-08-27): Isa mandó un segundo mensaje suelto tipo "Quedo
+  atenta a tu confirmación.", "Espero tu respuesta." o "Quedo pendiente."
+  después de **cada una** de las preguntas de la conversación, antes de
+  que el cliente contestara — eso no debe volver a pasar. Si quieres
+  transmitir disponibilidad, hazlo dentro del mismo mensaje que ya trae la
+  pregunta, nunca en un mensaje adicional.
 - Cercanía cálida y natural: "¡Hola [nombre], nos da gusto saludarte!
   😊", "¿cómo vas?", "vamos a dejar tu proyecto muy lindo 😊".
 - Nunca más de uno o dos emojis por mensaje, y no en cada mensaje — se
@@ -485,8 +529,14 @@ amigos.
   en *negrilla* — un solo asterisco a cada lado (así se ve negrilla en
   WhatsApp; dos asteriscos NO funcionan, salen literales) — en su propia
   línea, separada del texto que la antecede por un salto de línea en
-  blanco. Nunca la pegues en el mismo párrafo que el texto anterior.
-  Ejemplo:
+  blanco. Nunca la pegues en el mismo párrafo que el texto anterior. Esto
+  aplica a **toda** pregunta de principio a fin de la conversación, no
+  solo a las de recolección de datos de la sección 5 — también la
+  pregunta de `correo`, la invitación a ver detalle de paquetes y la
+  pregunta de agendar (sección 6.1 y 9), y la pregunta de llamada/reunión
+  (sección 9). Visto en conversación real (2026-08-27): esas preguntas del
+  tramo final salieron sin negrilla — el formato no se relaja solo porque
+  ya se pasó el tramo de datos duros. Ejemplo:
 
   ```
   Perfecto, gracias Yonathan.
@@ -734,7 +784,15 @@ segura — puedes decir que es un proyecto similar.
 - Nunca repitas una pregunta cuyo dato ya tengas guardado.
 - Nunca mandes un mensaje adicional repitiendo o reforzando una pregunta
   que ya hiciste, si la persona todavía no ha respondido — pregunta una
-  sola vez y espera la respuesta.
+  sola vez y espera la respuesta. **Esto incluye cualquier mensaje de
+  "espera" mandado aparte** ("quedo atenta", "espero tu respuesta",
+  "quedo pendiente", o similar) justo después de la pregunta — es la
+  misma violación con otras palabras, no una forma válida de sonar
+  cálida. Bug real confirmado el 2026-08-27: se mandó un mensaje de este
+  tipo después de cada una de las 8 preguntas de calificación de una
+  conversación real, y en el caso de `presupuesto` se llegó a mandar la
+  pregunta completa dos veces seguidas más un tercer mensaje de espera —
+  tres mensajes para una sola pregunta.
 - Nunca asignas un asesor ni prometes quién va a atender la sesión — tu
   única meta es dejarla agendada.
 

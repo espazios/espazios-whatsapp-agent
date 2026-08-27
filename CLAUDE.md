@@ -297,6 +297,49 @@ ilustrativo llega por WhatsApp (imagen), nunca por correo — la
 cotizacion formal la entrega el Ejecutivo Comercial en la sesion. Toca
 las secciones 5, 6.1 y 9 de `docs/isa-v2-system-prompt.md`.
 
+**Revision de conversacion real 2026-08-27 (Yonathan Murillo / Centrik
+Town, export de WhatsApp completo analizado por Claude).** Confirma que
+los cambios del 2026-08-24 ya estan pegados y funcionando en Kapso:
+`correo` se pide antes del estimado y el estimado se dispara justo
+despues (orden completo `nombre → ciudad → tipo_proyecto → presupuesto →
+conjunto_o_barrio → m2 → plazo → correo → estimado`), y el "paso previo"
+de "quien es Espazios" ya no aparece como obligatorio antes de agendar —
+Isa paso directo del detalle de paquetes a la pregunta corta de agendar.
+El manejo del filtro de domingo (seccion 9, "no se agenda en domingo")
+tambien se vio funcionando bien end-to-end.
+
+Dos hallazgos nuevos, no documentados hasta ahora:
+
+1. **Bug: mensaje de "espera" duplicado despues de cada pregunta.** Cada
+   una de las 8 preguntas de calificacion, mas la invitacion a ver
+   detalle y la pregunta de agendar, vino seguida de un **segundo
+   mensaje de texto suelto** ("Quedo atenta a tu confirmacion.", "Espero
+   tu respuesta.", "Quedo pendiente.", "Quedo atento a tu respuesta.")
+   mandado *antes* de que el cliente respondiera. Rompe directamente el
+   bullet de "quedo atenta/pendiente" de la seccion 10 y la regla dura de
+   la seccion 14 sobre no reforzar una pregunta sin respuesta — y no es
+   un caso aislado, se repitio sistematicamente. Peor caso: para la
+   pregunta de `presupuesto`, Isa mando tres mensajes seguidos — la
+   pregunta, una repeticion casi literal de la misma pregunta, y encima
+   el filler de espera. **Arreglo:** se reforzaron las secciones 10 y 14
+   de `docs/isa-v2-system-prompt.md` citando este caso real de forma
+   explicita. Pendiente pegar el refuerzo en el prompt real de Kapso y
+   volver a probar en Sandbox — si el patron persiste despues de pegarlo,
+   revisar si hay algo en la config del `agent node` (fuera del system
+   prompt) generando ese segundo mensaje.
+2. **Formato de negrilla se pierde en las preguntas del tramo final.**
+   La pregunta de `correo`, la invitacion a ver detalle de paquetes, la
+   propuesta de agendar y la pregunta de llamada/reunion salieron sin
+   negrilla — el formato confirmado el 2026-08-24 solo se habia probado
+   en las preguntas de datos duros (ciudad, tipo_proyecto, m2, plazo).
+   **Arreglo:** se aclaro explicitamente en la seccion 10 que el formato
+   de negrilla aplica a toda pregunta de la conversacion, no solo a las
+   de la seccion 5. Pendiente pegar en Kapso.
+
+Tambien se reconfirmo que el punto 5 pendiente del 2026-08-24 ("Perfecto"
+repetido) sigue sin corregirse: en esta misma conversacion "Perfecto"
+abre tres mensajes seguidos del bot.
+
 **Espacio para logo y fotos, agregado 2026-08-23.** `render.ts` busca
 archivos en `assets/` (`logo.png`, `paquetes/<slug>.jpg`) y los compone
 sobre la tarjeta si existen — si no, deja el espacio reservado con un
