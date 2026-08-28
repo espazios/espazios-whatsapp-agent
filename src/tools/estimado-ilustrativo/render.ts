@@ -2,14 +2,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import type { EstimadoPaquete } from "./pricing.js";
+import type { EstimadoPaquete, Paquete } from "./pricing.js";
+import type { ZonaContenido } from "./contenido.js";
+
+export interface TarjetaPaqueteInput extends EstimadoPaquete {
+  /** true si este es el paquete que coincide con el tipo_proyecto que el cliente ya eligio — se destaca en la tarjeta. */
+  elegido?: boolean;
+}
 
 export interface TarjetaInput {
   nombre: string;
   ciudad: string;
   proyecto: string;
   m2: number;
-  paquetes: EstimadoPaquete[];
+  paquetes: TarjetaPaqueteInput[];
 }
 
 const DESCRIPCIONES: Record<string, string> = {
@@ -18,10 +24,14 @@ const DESCRIPCIONES: Record<string, string> = {
   "Remodelacion completa": "Acabados y carpinteria a la medida, todo incluido",
 };
 
+// Nombres visibles para el cliente — evolucion 2026-08-28: "Remodelacion
+// completa" pasa a mostrarse como "Remodelación Total" (nombre propio del
+// paquete, no solo el termino tecnico) para que la pregunta de tipo de
+// proyecto y la tarjeta de estimado usen exactamente el mismo nombre.
 const NOMBRES_VISIBLES: Record<string, string> = {
   "Solo Obra Blanca": "Solo Obra Blanca",
   Intermedio: "Intermedio",
-  "Remodelacion completa": "Remodelación completa",
+  "Remodelacion completa": "Remodelación Total",
 };
 
 const PAQUETE_SLUGS: Record<string, string> = {
@@ -31,7 +41,6 @@ const PAQUETE_SLUGS: Record<string, string> = {
 };
 
 const WIDTH = 1080;
-const HEIGHT = 1350;
 
 // --- Paleta de marca ---
 // Tomada por muestreo directo de assets/logo.png (2026-08-24): el logo real
@@ -113,24 +122,53 @@ function encabezadoSvg(subtitulo: string, opts: { logoPresente: boolean }): stri
   <text x="60" y="185" font-size="26" fill="${COLORS.inkMuted}">${escapeXml(subtitulo)}</text>`;
 }
 
+/**
+ * Precio principal (con descuento si lo hay) + precio de lista tachado
+ * arriba, cuando el precio con descuento es menor. Si no hay descuento
+ * real (o el precio no esta disponible), muestra una sola linea.
+ */
+function bloquePrecioSvg(
+  p: Pick<EstimadoPaquete, "precioDesde" | "precioDesdeSinDescuento" | "aproximado">,
+  opts: { x: number; yPrincipal: number; fontPrincipal: number; fontTachado?: number }
+): string {
+  if (p.precioDesde === null) {
+    return `<text x="${opts.x}" y="${opts.yPrincipal}" font-size="${opts.fontPrincipal}" font-weight="700" fill="${COLORS.ink}">Precio disponible pronto</text>`;
+  }
+
+  const hayDescuento = p.precioDesdeSinDescuento !== null && p.precioDesdeSinDescuento > p.precioDesde;
+  const principal = `Desde ${formatCOP(p.precioDesde)}${hayDescuento ? " con descuento" : ""}${p.aproximado ? "*" : ""}`;
+  const lineaPrincipal = `<text x="${opts.x}" y="${opts.yPrincipal}" font-size="${opts.fontPrincipal}" font-weight="700" fill="${COLORS.ink}">${escapeXml(principal)}</text>`;
+
+  if (!hayDescuento) return lineaPrincipal;
+
+  const fontTachado = opts.fontTachado ?? Math.round(opts.fontPrincipal * 0.48);
+  const yTachado = opts.yPrincipal - opts.fontPrincipal - 4;
+  const lineaTachada = `<text x="${opts.x}" y="${yTachado}" font-size="${fontTachado}" fill="${COLORS.inkMuted}" text-decoration="line-through">Antes ${formatCOP(p.precioDesdeSinDescuento!)}</text>`;
+  return `${lineaTachada}\n    ${lineaPrincipal}`;
+}
+
 function buildSvg(input: TarjetaInput, opts: { logoPresente: boolean }): string {
   const paqueteY = 560;
-  const paqueteAltura = 210;
+  const paqueteAltura = 240; // espacio extra para el precio tachado arriba del precio con descuento
   const paqueteGap = 26;
 
   const tarjetas = input.paquetes
     .map((p, i) => paqueteCardSvg(p, paqueteY + i * (paqueteAltura + paqueteGap), paqueteAltura))
     .join("\n");
 
+  const cardsFinY = paqueteY + input.paquetes.length * (paqueteAltura + paqueteGap) - paqueteGap;
+  const footerY = cardsFinY + 70;
+  const height = footerY + 70;
+
   return `
-<svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+<svg width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <style>
       text { font-family: ${FONT_STACK}; }
     </style>
   </defs>
 
-  <rect width="${WIDTH}" height="${HEIGHT}" fill="${COLORS.bgPage}" />
+  <rect width="${WIDTH}" height="${height}" fill="${COLORS.bgPage}" />
 
   ${encabezadoSvg("Estimado ilustrativo de tu proyecto", opts)}
 
@@ -149,52 +187,66 @@ function buildSvg(input: TarjetaInput, opts: { logoPresente: boolean }): string 
   ${tarjetas}
 
   <!-- Pie / disclaimer -->
-  <text x="60" y="${HEIGHT - 60}" font-size="18" fill="${COLORS.footer}">
+  <text x="60" y="${footerY}" font-size="18" fill="${COLORS.footer}">
     <tspan x="60" dy="0">*Precios aproximados, no constituyen una cotizacion formal —</tspan>
     <tspan x="60" dy="26">sujetos a la cotizacion con tu Ejecutivo Comercial.</tspan>
   </text>
 </svg>`.trim();
 }
 
-function paqueteCardSvg(p: EstimadoPaquete, y: number, alto: number): string {
+function paqueteCardSvg(p: TarjetaPaqueteInput, y: number, alto: number): string {
   const descripcion = DESCRIPCIONES[p.paquete] ?? "";
-  const precioTexto =
-    p.precioDesde === null
-      ? "Precio disponible pronto"
-      : `Desde ${formatCOP(p.precioDesde)}${p.aproximado ? "*" : ""}`;
+  const bordeAncho = p.elegido ? 4 : 2;
+  const bordeColor = p.elegido ? COLORS.ink : COLORS.border;
+
+  const badge = p.elegido
+    ? `
+    <rect x="${WIDTH - 60 - 172}" y="${y + 18}" width="172" height="34" rx="17" fill="${COLORS.sage}" />
+    <text x="${WIDTH - 60 - 172 + 86}" y="${y + 41}" font-size="18" font-weight="700" fill="${COLORS.bgCard}" text-anchor="middle">Tu elección</text>`
+    : "";
 
   return `
   <g>
-    <rect x="60" y="${y}" width="${WIDTH - 120}" height="${alto}" rx="18" fill="${COLORS.bgCard}" stroke="${COLORS.border}" stroke-width="2" />
+    <rect x="60" y="${y}" width="${WIDTH - 120}" height="${alto}" rx="18" fill="${COLORS.bgCard}" stroke="${bordeColor}" stroke-width="${bordeAncho}" />
     <rect x="60" y="${y}" width="6" height="${alto}" rx="3" fill="${COLORS.sage}" />
+    ${badge}
     <text x="92" y="${y + 52}" font-size="30" font-weight="700" fill="${COLORS.ink}">${escapeXml(NOMBRES_VISIBLES[p.paquete] ?? p.paquete)}</text>
     <text x="92" y="${y + 90}" font-size="22" fill="${COLORS.inkMuted}">${escapeXml(descripcion)}</text>
-    <text x="92" y="${y + alto - 40}" font-size="42" font-weight="700" fill="${COLORS.ink}">${escapeXml(precioTexto)}</text>
+    ${bloquePrecioSvg(p, { x: 92, yPrincipal: y + alto - 40, fontPrincipal: 42 })}
   </g>`;
 }
 
 export interface DetalleInput {
-  paquete: string;
+  paquete: Paquete;
   precioDesde: number | null;
+  precioDesdeSinDescuento: number | null;
   aproximado: boolean;
-  items: string[];
+  zonas: ZonaContenido[];
 }
 
-const FOTO_BOX = { x: 60, y: 415, w: WIDTH - 120, h: 440 };
-const ITEM_ALTURA = 42;
-const ITEMS_Y_INICIO = FOTO_BOX.y + FOTO_BOX.h + 70;
+const FOTO_BOX = { x: 60, y: 435, w: WIDTH - 120, h: 440 };
+const ZONA_TITULO_ALTURA = 46;
+const ITEM_ALTURA = 38;
+const ZONA_GAP = 22;
+const ZONAS_Y_INICIO = FOTO_BOX.y + FOTO_BOX.h + 70;
 
 /** Genera la tarjeta de detalle ("que incluye") de un solo paquete, como PNG. */
 export async function renderDetalle(input: DetalleInput): Promise<Buffer> {
   const logo = loadAsset("logo.png");
   const foto = loadAsset("paquetes", `${PAQUETE_SLUGS[input.paquete] ?? "paquete"}.jpg`);
-  const altura = ITEMS_Y_INICIO + Math.max(input.items.length, 1) * ITEM_ALTURA + 100;
+  const contenidoAltura = calcularAlturaZonas(input.zonas);
+  const altura = ZONAS_Y_INICIO + contenidoAltura + 100;
 
   const svg = buildDetalleSvg(input, altura, { logoPresente: logo !== null, fotoPresente: foto !== null });
   let img = sharp(Buffer.from(svg)).png();
   if (logo) img = await componerLogo(img, logo);
   if (foto) img = await componerFoto(img, foto);
   return img.toBuffer();
+}
+
+function calcularAlturaZonas(zonas: ZonaContenido[]): number {
+  if (zonas.length === 0) return ITEM_ALTURA; // linea de "disponible pronto"
+  return zonas.reduce((acc, z) => acc + ZONA_TITULO_ALTURA + z.items.length * ITEM_ALTURA + ZONA_GAP, 0);
 }
 
 async function componerFoto(base: sharp.Sharp, foto: Buffer): Promise<sharp.Sharp> {
@@ -210,21 +262,27 @@ function buildDetalleSvg(
   height: number,
   opts: { logoPresente: boolean; fotoPresente: boolean }
 ): string {
-  const precioTexto =
-    input.precioDesde === null
-      ? "Precio disponible pronto"
-      : `Desde ${formatCOP(input.precioDesde)}${input.aproximado ? "*" : ""}`;
-
-  const items =
-    input.items.length > 0
-      ? input.items
-          .map(
-            (item, i) => `
-    <circle cx="76" cy="${ITEMS_Y_INICIO + i * ITEM_ALTURA - 8}" r="5" fill="${COLORS.sage}" />
-    <text x="96" y="${ITEMS_Y_INICIO + i * ITEM_ALTURA}" font-size="22" fill="${COLORS.ink}">${escapeXml(item)}</text>`
-          )
+  let cursorY = ZONAS_Y_INICIO;
+  const zonasSvg =
+    input.zonas.length > 0
+      ? input.zonas
+          .map((z) => {
+            const tituloY = cursorY;
+            cursorY += ZONA_TITULO_ALTURA;
+            const itemsSvg = z.items
+              .map((item, i) => {
+                const itemY = cursorY + i * ITEM_ALTURA;
+                return `
+    <circle cx="76" cy="${itemY - 8}" r="5" fill="${COLORS.sage}" />
+    <text x="96" y="${itemY}" font-size="22" fill="${COLORS.ink}">${escapeXml(item)}</text>`;
+              })
+              .join("\n");
+            cursorY += z.items.length * ITEM_ALTURA + ZONA_GAP;
+            return `
+    <text x="60" y="${tituloY}" font-size="24" font-weight="700" fill="${COLORS.ink}">${escapeXml(z.zona)}</text>${itemsSvg}`;
+          })
           .join("\n")
-      : `<text x="60" y="${ITEMS_Y_INICIO}" font-size="22" fill="${COLORS.footer}">Detalle disponible pronto — pregunta a tu Ejecutivo Comercial.</text>`;
+      : `<text x="60" y="${ZONAS_Y_INICIO}" font-size="22" fill="${COLORS.footer}">Detalle disponible pronto — pregunta a tu Ejecutivo Comercial.</text>`;
 
   // Espacio de la foto: si no hay archivo todavia, se deja el rectangulo
   // reservado con un aviso discreto — el area no se mueve cuando se agregue
@@ -248,13 +306,13 @@ function buildDetalleSvg(
   ${encabezadoSvg("Que incluye este paquete", opts)}
 
   <text x="60" y="290" font-size="38" font-weight="700" fill="${COLORS.ink}">${escapeXml(NOMBRES_VISIBLES[input.paquete] ?? input.paquete)}</text>
-  <text x="60" y="335" font-size="34" font-weight="700" fill="${COLORS.ink}">${escapeXml(precioTexto)}</text>
+  ${bloquePrecioSvg(input, { x: 60, yPrincipal: 355, fontPrincipal: 34, fontTachado: 20 })}
 
-  <line x1="60" y1="375" x2="${WIDTH - 60}" y2="375" stroke="${COLORS.border}" stroke-width="2" />
+  <line x1="60" y1="395" x2="${WIDTH - 60}" y2="395" stroke="${COLORS.border}" stroke-width="2" />
 
   ${fotoPlaceholder}
 
-  ${items}
+  ${zonasSvg}
 
   <text x="60" y="${height - 60}" font-size="18" fill="${COLORS.footer}">
     <tspan x="60" dy="0">*Contenido y precio ilustrativos — se confirman en la</tspan>

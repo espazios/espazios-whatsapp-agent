@@ -341,6 +341,91 @@ chico, h:100) y la posicion del subtitulo (y:150 → y:185).
 - `POST /tools/detalle-paquete` (input: `paquete`, `m2`) en
   `tools-server.ts` — mismo cache en memoria que el estimado general.
 
+**Evolución del cotizador a precio por m2 exacto, 2026-08-28.** Pedido
+del usuario: dejar de calcular por rango de m2 (25-35/36-45/46-55) y usar
+el precio real para el metraje exacto del apartamento; unificar
+`tipo_proyecto` con los 3 nombres de paquete; y reorganizar el "que
+incluye" por zona del hogar en vez de lista plana. El equipo comercial ya
+habia recargado la hoja `Tarifas Ilustrativas - Isa` con el nuevo
+esquema (`paquete, Baños, Habitaciones, m2, precio_m2, precio_m2 con
+descuento, notas` — una fila por m2 exacto de 19 a 60) antes de pedir
+este cambio.
+
+Antes de tocar codigo se resolvieron 3 preguntas de negocio con el
+usuario (via `AskUserQuestion`):
+
+1. **Baños, no habitaciones, en la banda 31-44 m2.** La hoja real mostro
+   que en esa banda lo que varia entre las dos filas por m2 es *baños* (1
+   o 2) — habitaciones queda fijo en 2 ahi. Esto contradecia la
+   instruccion literal original del usuario ("pregunte cuantas
+   habitaciones tiene"). Confirmado por el usuario: se pregunta baños,
+   no habitaciones. `habitaciones` nunca se le pregunta al cliente — se
+   deriva sola de la fila de tarifa que se termino usando (fija segun la
+   banda de m2), y de ahi se decide si aparecen las zonas condicionales
+   "Habitación 2"/"Habitación 3" del detalle.
+2. **Carpintería sigue como una 4ta opcion aparte** de `tipo_proyecto`
+   (junto a Solo Obra Blanca/Intermedio/Remodelación Total), con sus
+   reglas de cobertura extendida (Mosquera, Madrid, Chía, Cota,
+   Zipaquirá, Cajicá, La Calera) y presupuesto minimo ($10M) intactas —
+   no hereda nada al nuevo "Intermedio". "Intermedio" comparte cobertura
+   (Bogotá/Soacha) y presupuesto minimo ($15M) con sus dos hermanos de
+   cobertura completa — el usuario no dio una regla explicita para el
+   presupuesto minimo de Intermedio especificamente, se asumio igual al
+   de sus hermanos por ser lo menos arriesgado; confirmar si no es el
+   caso.
+3. **La tarjeta muestra el precio con descuento** (columna `precio_m2 con
+   descuento`), resaltado, con el precio de lista (`precio_m2`) tachado
+   al lado — pedido explicito del usuario. Implementado en `render.ts`
+   con el atributo SVG `text-decoration="line-through"` (nativo, no
+   depende de la libreria de fuentes que ya dio problemas con
+   `@font-face`, ver el bug de texto invisible mas arriba).
+
+Cambios de codigo: `pricing.ts` reescrito para leer una fila exacta por
+m2 (con fallback al m2 conocido mas cercano fuera de 19-60, igual que
+antes) y preferir la fila del `banos` pedido cuando hay mas de una en
+31-44; `contenido.ts` ahora agrupa el "Incluye" por zona
+(`paquete, zona, item`) y filtra zonas condicionales ("Baño principal"
+solo si banos=2, "Habitación 2"/"3" solo si habitaciones>=2/3) —
+retrocompatible con el formato viejo de 2 columnas (todo cae en una zona
+"General") por si la pestaña no se ha actualizado todavia; `render.ts`
+agrega el estado "destacado" (badge "Tu elección") para la tarjeta que
+coincide con `tipo_proyecto`, agrupa el detalle por zona con
+encabezados, y muestra precio-con-descuento + tachado en ambas tarjetas.
+`tools-server.ts`: `/tools/estimado-ilustrativo` ahora recibe tambien
+`banos` (opcional) y `tipoProyecto`, y cuando este coincide con uno de
+los 3 paquetes genera y devuelve de una vez el `imageUrl` del detalle de
+ese paquete (asi Isa lo manda sin una segunda llamada); `/tools/detalle-
+paquete` recibe tambien `banos` (opcional).
+
+El nombre visible del tercer paquete pasa de "Remodelación completa" a
+**"Remodelación Total"** (el usuario pidio explicitamente "colócale un
+nombre" a ese paquete y a Intermedio) — mismo nombre en la tarjeta, en
+el detalle y en la pregunta de `tipo_proyecto`, para que sean
+intercambiables sin mapeo adicional. La clave interna en el codigo sigue
+siendo `"Remodelacion completa"` (ASCII, sin tildes) para minimizar el
+diff; solo cambio el texto visible.
+
+Encontrado y resuelto sin bloquear al usuario (bajo riesgo, reversible):
+la pestaña "Tarifas" de la hoja usa **"Total"** como nombre del tercer
+paquete, mientras que la pestaña "Incluye" usa "Remodelacion completa" —
+inconsistencia entre pestañas de la misma hoja. `pricing.ts` acepta
+ambos como alias del mismo paquete interno (`normalizarPaquete`), asi
+que no hizo falta editar la hoja para esto.
+
+**Pendiente — no se pudo resolver en esta sesion.** El conector de
+Google Drive disponible aca (`mcp__Google_Drive__*`) solo permite leer
+archivos y renombrar/mover metadata — no expone escritura de celdas de
+un Sheet existente (no hay equivalente a `spreadsheets.values.update`).
+No se pudo reestructurar la pestaña "Incluye" al formato nuevo
+(`paquete, zona, item`) directamente en la hoja real. `contenido.ts` ya
+soporta ese formato (y sigue funcionando con el viejo como fallback),
+pero alguien con acceso de edicion al Sheet tiene que pegar el contenido
+— se genero una propuesta de mapeo de los items placeholder de Tervi
+(los que ya estaban cargados) a las 7 zonas, entregada en el chat de esa
+sesion. Sigue siendo placeholder, como ya estaba anotado — falta el
+contenido real de Espazios por zona, pendiente de la reunion con los
+arquitectos.
+
 ## Autenticacion con Google (resuelto 2026-08-23)
 
 `secrets/service-account.json` **no es una cuenta de servicio clasica** —

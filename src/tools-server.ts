@@ -3,8 +3,13 @@ import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import { generateQuote, getQuotePdfBytes } from "./tools/cotizador/generate-quote.js";
 import type { QuoteInput } from "./tools/cotizador/field-map.js";
-import { calcularEstimado, PAQUETES, type Paquete } from "./tools/estimado-ilustrativo/pricing.js";
-import { renderTarjeta, renderDetalle } from "./tools/estimado-ilustrativo/render.js";
+import {
+  calcularEstimado,
+  paqueteDesdeTipoProyecto,
+  PAQUETES,
+  type Paquete,
+} from "./tools/estimado-ilustrativo/pricing.js";
+import { renderTarjeta, renderDetalle, type TarjetaPaqueteInput } from "./tools/estimado-ilustrativo/render.js";
 import { leerContenidoPaquete } from "./tools/estimado-ilustrativo/contenido.js";
 
 /**
@@ -83,6 +88,16 @@ interface EstimadoInput {
   ciudad: string;
   proyecto: string;
   m2: number;
+  /** Solo relevante si m2 cae en 31-44 (ahi hay 2 tarifas segun banos) — se ignora fuera de esa banda. */
+  banos?: number;
+  /** tipo_proyecto ya recolectado — si coincide con uno de los 3 paquetes, esa tarjeta se destaca y se manda su detalle de una vez. */
+  tipoProyecto?: string;
+}
+
+function guardarImagen(bytes: Buffer, baseUrl: string): string {
+  const id = randomUUID();
+  estimadosGenerados.set(id, { bytes, creadoEn: Date.now() });
+  return `${baseUrl}/tools/estimados/${id}`;
 }
 
 app.post("/tools/estimado-ilustrativo", async (req, reply) => {
@@ -97,26 +112,54 @@ app.post("/tools/estimado-ilustrativo", async (req, reply) => {
 
   try {
     const m2 = Number(input.m2);
-    const paquetes = await calcularEstimado(m2);
+    const banos = input.banos !== undefined && input.banos !== null ? Number(input.banos) : undefined;
+    const estimados = await calcularEstimado(m2, banos);
+    const baseUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+
+    const paqueteElegidoKey = paqueteDesdeTipoProyecto(input.tipoProyecto);
+    const paquetesConDestaque: TarjetaPaqueteInput[] = estimados.map((p) => ({
+      ...p,
+      elegido: p.paquete === paqueteElegidoKey,
+    }));
+
     const bytes = await renderTarjeta({
       nombre: input.nombre!,
       ciudad: input.ciudad!,
       proyecto: input.proyecto!,
       m2,
-      paquetes,
+      paquetes: paquetesConDestaque,
     });
+    const imageUrl = guardarImagen(bytes, baseUrl);
 
-    const id = randomUUID();
-    estimadosGenerados.set(id, { bytes, creadoEn: Date.now() });
+    // Si tipo_proyecto coincide con uno de los 3 paquetes, se genera y manda
+    // de una vez el detalle ("que incluye") de ESE paquete — Carpintería y
+    // cualquier otro valor no matchea ninguno, se queda en null.
+    let paqueteElegido: { paquete: Paquete; imageUrl: string } | null = null;
+    if (paqueteElegidoKey) {
+      const elegido = estimados.find((p) => p.paquete === paqueteElegidoKey)!;
+      const zonas = await leerContenidoPaquete(paqueteElegidoKey, {
+        banos: elegido.banos ?? undefined,
+        habitaciones: elegido.habitaciones ?? undefined,
+      });
+      const detalleBytes = await renderDetalle({
+        paquete: paqueteElegidoKey,
+        precioDesde: elegido.precioDesde,
+        precioDesdeSinDescuento: elegido.precioDesdeSinDescuento,
+        aproximado: elegido.aproximado,
+        zonas,
+      });
+      paqueteElegido = { paquete: paqueteElegidoKey, imageUrl: guardarImagen(detalleBytes, baseUrl) };
+    }
 
-    const baseUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
     return {
-      imageUrl: `${baseUrl}/tools/estimados/${id}`,
-      paquetes: paquetes.map((p) => ({
+      imageUrl,
+      paquetes: estimados.map((p) => ({
         paquete: p.paquete,
         precioDesde: p.precioDesde,
+        precioDesdeSinDescuento: p.precioDesdeSinDescuento,
         aproximado: p.aproximado,
       })),
+      paqueteElegido,
     };
   } catch (err) {
     req.log.error({ err }, "Fallo generando el estimado ilustrativo");
@@ -127,6 +170,8 @@ app.post("/tools/estimado-ilustrativo", async (req, reply) => {
 interface DetalleInput {
   paquete: string;
   m2: number;
+  /** Solo relevante si m2 cae en 31-44 — se ignora fuera de esa banda. */
+  banos?: number;
 }
 
 app.post("/tools/detalle-paquete", async (req, reply) => {
@@ -145,23 +190,23 @@ app.post("/tools/detalle-paquete", async (req, reply) => {
   try {
     const paquete = input.paquete as Paquete;
     const m2 = Number(input.m2);
-    const [estimado, items] = await Promise.all([
-      calcularEstimado(m2).then((r) => r.find((p) => p.paquete === paquete)!),
-      leerContenidoPaquete(paquete),
-    ]);
+    const banos = input.banos !== undefined && input.banos !== null ? Number(input.banos) : undefined;
+    const estimado = (await calcularEstimado(m2, banos)).find((p) => p.paquete === paquete)!;
+    const zonas = await leerContenidoPaquete(paquete, {
+      banos: estimado.banos ?? undefined,
+      habitaciones: estimado.habitaciones ?? undefined,
+    });
 
     const bytes = await renderDetalle({
       paquete,
       precioDesde: estimado.precioDesde,
+      precioDesdeSinDescuento: estimado.precioDesdeSinDescuento,
       aproximado: estimado.aproximado,
-      items,
+      zonas,
     });
 
-    const id = randomUUID();
-    estimadosGenerados.set(id, { bytes, creadoEn: Date.now() });
-
     const baseUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
-    return { imageUrl: `${baseUrl}/tools/estimados/${id}`, items };
+    return { imageUrl: guardarImagen(bytes, baseUrl), zonas };
   } catch (err) {
     req.log.error({ err }, "Fallo generando el detalle del paquete");
     return reply.code(500).send({ error: "No se pudo generar el detalle." });
