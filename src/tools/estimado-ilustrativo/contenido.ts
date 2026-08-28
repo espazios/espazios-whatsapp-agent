@@ -21,9 +21,15 @@ export interface ZonaContenido {
 
 const INCLUYE_RANGE = "Incluye!A2:C"; // paquete, zona, item — sin encabezado
 
-/** Zonas que solo aplican segun banos/habitaciones del cliente — cualquier otra zona siempre aplica. */
+/**
+ * Zonas que solo aplican segun banos/habitaciones del cliente — cualquier
+ * otra zona siempre aplica. Los nombres de zona son los que el equipo
+ * comercial uso en la pestaña "Incluye" real (confirmado 2026-08-28 al
+ * revisar el archivo que subieron) — "Baño habitación principal", no
+ * "Baño principal" como se habia asumido antes de ver el contenido real.
+ */
 const ZONAS_CONDICIONALES: Record<string, (opts: { banos?: number; habitaciones?: number }) => boolean> = {
-  "bano principal": (opts) => opts.banos === 2,
+  "bano habitacion principal": (opts) => opts.banos === 2,
   "habitacion 2": (opts) => (opts.habitaciones ?? 1) >= 2,
   "habitacion 3": (opts) => (opts.habitaciones ?? 1) >= 3,
 };
