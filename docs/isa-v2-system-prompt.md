@@ -81,6 +81,17 @@ precio por m2 exacto:**
    vs. habitaciones en 31-44 m2, qué pasa con las reglas de Carpintería,
    y cuál de los dos precios de la hoja se usa).
 
+**Pendiente de pegar en Kapso (2026-08-28) — rediseño visual de la
+tarjeta de detalle:** `ver_detalle_paquete` (sección 6.1, ya actualizada
+arriba en este archivo) recibe ahora también `nombre`, `ciudad` y
+`proyecto` — antes solo pedía `paquete`, `m2` y `banos`. Es el mismo
+cambio de firma que ya tenía `generar_estimado_ilustrativo`, aplicado
+también a la herramienta del detalle porque la tarjeta rediseñada ahora
+muestra esos datos del cliente igual que la tarjeta resumen. El resto
+del rediseño (fotos por zona, etiqueta de descuento, disclaimer legal)
+vive dentro de la imagen misma — no cambia nada del comportamiento de
+Isa ni requiere texto nuevo en el prompt.
+
 Ver notas de revisión al final del archivo.
 
 ---
