@@ -217,7 +217,7 @@ function bloquePrecioSvg(
   if (!hayDescuento) return lineaPrincipal;
 
   const fontTachado = opts.fontTachado ?? Math.round(opts.fontPrincipal * 0.48);
-  const yTachado = opts.yPrincipal - opts.fontPrincipal - 4;
+  const yTachado = opts.yPrincipal - opts.fontPrincipal - 8;
   const lineaTachada = `<text x="${opts.x}" y="${yTachado}" font-size="${fontTachado}" fill="${COLORS.inkMuted}" text-decoration="line-through">Antes ${formatCOP(p.precioDesdeSinDescuento!)}</text>`;
   return `${lineaTachada}\n    ${lineaPrincipal}`;
 }
@@ -384,7 +384,7 @@ export async function renderDetalle(input: DetalleInput): Promise<Buffer> {
 }
 
 // Encabezado (220) + datos de cliente/proyecto (3 lineas) + precio + divisor.
-const ZONAS_Y_INICIO = 470;
+const ZONAS_Y_INICIO = 502;
 
 function bloqueLegal(y: number, descuentoPct: number): { svg: string; y: number; alto: number } {
   const lineas = [
@@ -483,9 +483,9 @@ function buildDetalleSvg(
   <text x="60" y="315" font-size="20" fill="${COLORS.inkMuted}">${escapeXml(input.proyecto)} · ${escapeXml(input.ciudad)} · ${escapeXml(metaPartes.join(" · "))}</text>
 
   <text x="60" y="365" font-size="32" font-weight="700" fill="${COLORS.ink}">${escapeXml(NOMBRES_VISIBLES[input.paquete] ?? input.paquete)}</text>
-  ${bloquePrecioSvg(input, { x: 60, yPrincipal: 415, fontPrincipal: 34, fontTachado: 20 })}
+  ${bloquePrecioSvg(input, { x: 60, yPrincipal: 448, fontPrincipal: 34, fontTachado: 20 })}
 
-  <line x1="60" y1="440" x2="${WIDTH - 60}" y2="440" stroke="${COLORS.border}" stroke-width="2" />
+  <line x1="60" y1="472" x2="${WIDTH - 60}" y2="472" stroke="${COLORS.border}" stroke-width="2" />
 
   ${zonasSvg}
 
