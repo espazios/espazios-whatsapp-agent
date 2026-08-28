@@ -426,6 +426,85 @@ sesion. Sigue siendo placeholder, como ya estaba anotado — falta el
 contenido real de Espazios por zona, pendiente de la reunion con los
 arquitectos.
 
+**Actualizado 2026-08-28 — el equipo comercial ya cargo el contenido
+real (ya no es el placeholder de Tervi).** El usuario subio un xlsx con
+la pestaña "Incluye" ya reescrita con el contenido real de Espazios (36
+items en 8 zonas: Obra blanca, Cocina, Zona de ropas, Baño general,
+**Baño habitación principal**, Habitación principal, Habitación 2,
+Habitación 3) — mucho mas detallado que el placeholder. Se corrigio
+ortografia en 142 celdas (tildes/ñ que faltaban, mayusculas
+inconsistentes, puntos finales sueltos) y se devolvio el archivo
+corregido; el usuario ya lo pego en la hoja real. Se encontro y corrigio
+un bug en `contenido.ts`: la zona condicional que solo debe aparecer con
+2 baños se llama en el contenido real **"Baño habitación principal"**,
+no "Baño principal" como se habia asumido antes de ver el contenido —
+sin el ajuste esa zona nunca se hubiera ocultado bien para apartamentos
+de 1 baño.
+
+**Rediseño visual de la tarjeta de detalle, 2026-08-28.** Pedido del
+usuario: que la tarjeta de "que incluye" se vea como una cotizacion real
+(inspirado en la pestaña "Cotización" del Cotizador VER4, aunque esa
+pestaña resulto ser una grilla operativa de checkboxes sin diseño visual
+que copiar — se aprovecho de ahi el tagline de marca "Dale vida a cada
+lugar." y la lista de campos parametricos que ya usa esa plantilla:
+cliente, proyecto, area privada, habitaciones, baños), con imagenes
+junto a cada zona, encabezados, paleta rediseñada aplicando principios
+de UX, y disclaimers legales redactados como los pediria un abogado
+comercial en Colombia. Cambios en `render.ts`:
+
+- **Tarjetas de zona con imagen + texto** (ley de la region comun: cada
+  zona es su propia tarjeta con borde; ley de proximidad: la foto vive
+  junto a su texto). Foto por zona (no por paquete como antes) — busca
+  `assets/zonas/<zona-normalizada>.jpg`, con el mismo placeholder
+  discreto de siempre si no existe (ver `assets/README.md`, actualizado
+  con los 8 nombres de archivo esperados). Las fotos por paquete viejas
+  (`assets/paquetes/*.jpg`) ya no las usa el codigo.
+- **Envoltura de texto real** (`envolverTexto()` en `render.ts`): los
+  items ahora conviven con una imagen al lado, asi que la columna de
+  texto es mas angosta — hacia falta partir items largos en varias
+  lineas (antes cada item era una sola linea sin quiebre). Estima el
+  ancho de caracter para DejaVu Sans/Liberation Sans, sin dependencias
+  nuevas.
+- **Etiqueta de descuento, esquina superior izquierda** ("Incluye
+  descuento del X%") — pedido explicito del usuario, "dato parametrico,
+  default 3%". Implementado como `calcularDescuentoPct()`: calcula el %
+  real a partir de `precioDesde`/`precioDesdeSinDescuento` cuando ambos
+  estan disponibles (para que nunca quede desactualizada si el
+  descuento de la hoja cambia), y solo cae al 3% por defecto
+  (`DESCUENTO_PCT_DEFAULT`) si no se puede calcular. Aparece en ambas
+  tarjetas (resumen y detalle) para que sea el mismo sello en las dos
+  (ley de Jakob / consistencia).
+- **Disclaimer legal ampliado**, en bloque aparte con fondo distinto
+  (ley del aislamiento — Von Restorff): dice explicitamente que el
+  documento NO es una oferta comercial en firme (relevante en Colombia
+  por el art. 845 del Código de Comercio — una propuesta con los
+  elementos del contrato comunicada al destinatario puede considerarse
+  vinculante si no se aclara lo contrario), que el valor final puede
+  variar segun la personalizacion del cliente y los ajustes que resulten
+  de conocer la vivienda en la visita tecnica, y que el descuento se
+  confirma en la cotizacion formal.
+- **Datos del cliente/proyecto en la tarjeta de detalle** — antes solo
+  la tenia la tarjeta resumen; ahora la de detalle tambien muestra
+  nombre, proyecto, ciudad, m2, habitaciones y baños (cuando se
+  conocen), como una cotizacion real. Esto significa que
+  `ver_detalle_paquete` (`docs/isa-v2-system-prompt.md`, sección 6.1) y
+  `/tools/detalle-paquete` (`tools-server.ts`) ahora reciben tambien
+  `nombre`, `ciudad` y `proyecto` — antes solo pedian `paquete`, `m2` y
+  `banos`.
+- Otras leyes de UX aplicadas con criterio, no las 12 a la fuerza: ley
+  de la similitud (todas las tarjetas de zona con el mismo estilo), ley
+  de Prägnanz (formas simples, sin adornos), efecto de posicion serial
+  (Obra blanca — lo estructural — abre el listado; el disclaimer legal
+  lo cierra con fuerza en vez de dejarlo desvanecer). Fitts/Hick/Doherty
+  no aplican — es una imagen estatica, no hay interaccion ni carga.
+
+No se pudo ver el estilo visual real de la pestaña "Cotización" del
+Cotizador VER4 (colores, fuentes) — el conector de Drive disponible aca
+no dejo descargar ese archivo como xlsx (~9.4MB, "session expired" en
+varios intentos) para inspeccionar formato con `openpyxl`. Se diseño con
+la paleta de marca ya verificada (muestreada del logo real) en vez de
+copiar la de esa hoja.
+
 ## Autenticacion con Google (resuelto 2026-08-23)
 
 `secrets/service-account.json` **no es una cuenta de servicio clasica** —
@@ -472,6 +551,10 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
       webhook tools en el agent node de Kapso, apuntando a
       `https://espazios-whatsapp-agent-production.up.railway.app` (URL
       permanente, ya no hay que actualizarla cada vez).
+- [ ] Fotos por zona (`assets/zonas/*.jpg`, 8 archivos — ver
+      `assets/README.md`) — ninguna existe todavia, la tarjeta de
+      detalle rediseñada 2026-08-28 muestra el placeholder discreto en
+      las 8 zonas mientras tanto.
 - [ ] Si mas adelante se decide automatizar el PDF de cotizacion detallado:
       retomar `COTIZADOR_TEMPLATE_ID` (pendiente, ver abajo) — el estimado
       ilustrativo de 3 paquetes ya no depende de esto.

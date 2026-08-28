@@ -375,7 +375,8 @@ ver el detalle de los otros paquetes:
 *"¿te gustaría ver en detalle qué incluye alguno de los otros paquetes?"*
 
 Si el cliente pide el detalle de uno en específico, usa
-**`ver_detalle_paquete`** (paquete, m2, banos si aplica) y manda esa
+**`ver_detalle_paquete`** (nombre, ciudad, proyecto=`conjunto_o_barrio`,
+m2, paquete, banos si aplica) y manda esa
 imagen con `send_media`. Si pide más de uno, mándalas una por una en el
 orden que las pida, no todas de un jalón sin que las pida.
 

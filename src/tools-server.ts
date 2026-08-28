@@ -142,6 +142,12 @@ app.post("/tools/estimado-ilustrativo", async (req, reply) => {
         habitaciones: elegido.habitaciones ?? undefined,
       });
       const detalleBytes = await renderDetalle({
+        nombre: input.nombre!,
+        ciudad: input.ciudad!,
+        proyecto: input.proyecto!,
+        m2,
+        banos: elegido.banos,
+        habitaciones: elegido.habitaciones,
         paquete: paqueteElegidoKey,
         precioDesde: elegido.precioDesde,
         precioDesdeSinDescuento: elegido.precioDesdeSinDescuento,
@@ -168,6 +174,9 @@ app.post("/tools/estimado-ilustrativo", async (req, reply) => {
 });
 
 interface DetalleInput {
+  nombre: string;
+  ciudad: string;
+  proyecto: string;
   paquete: string;
   m2: number;
   /** Solo relevante si m2 cae en 31-44 — se ignora fuera de esa banda. */
@@ -177,7 +186,7 @@ interface DetalleInput {
 app.post("/tools/detalle-paquete", async (req, reply) => {
   const body = req.body as any;
   const input = (body?.input ?? body) as Partial<DetalleInput>;
-  const missing = (["paquete", "m2"] as const).filter(
+  const missing = (["nombre", "ciudad", "proyecto", "paquete", "m2"] as const).filter(
     (field) => input[field] === undefined || input[field] === null || input[field] === ""
   );
   if (missing.length > 0) {
@@ -198,6 +207,12 @@ app.post("/tools/detalle-paquete", async (req, reply) => {
     });
 
     const bytes = await renderDetalle({
+      nombre: input.nombre!,
+      ciudad: input.ciudad!,
+      proyecto: input.proyecto!,
+      m2,
+      banos: estimado.banos,
+      habitaciones: estimado.habitaciones,
       paquete,
       precioDesde: estimado.precioDesde,
       precioDesdeSinDescuento: estimado.precioDesdeSinDescuento,
