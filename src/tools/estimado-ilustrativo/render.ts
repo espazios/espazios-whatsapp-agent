@@ -99,7 +99,10 @@ const FONT_STACK = "'DejaVu Sans', 'Liberation Sans', 'Segoe UI', Arial, sans-se
 // h controla el tamano real (fit:"inside" lo limita por altura); w solo
 // pone un tope maximo. El logo real es panoramico (~2.5:1 icono+wordmark),
 // asi que h=100 dejaba antes suficiente aire respecto al subtitulo de abajo.
-const LOGO_BOX = { x: 60, y: 46, w: 320, h: 100 };
+// x corrido de 60 a 260 (2026-08-28): la cinta diagonal de descuento en la
+// esquina superior izquierda ocupa ese triangulo del encabezado — el logo
+// se recorre para no quedar tapado por ella (ver etiquetaDescuentoSvg).
+const LOGO_BOX = { x: 260, y: 46, w: 320, h: 100 };
 const HEADER_HEIGHT = 220;
 const HEADER_ACCENT_HEIGHT = 6;
 
@@ -141,12 +144,31 @@ async function componerImagen(
  * un sello/tag y no como un boton mas.
  */
 function etiquetaDescuentoSvg(pct: number): string {
-  const texto = `Incluye descuento del ${pct}%`;
-  const ancho = 110 + texto.length * 9.5;
+  // Texto corto a propósito: una cinta diagonal no tiene espacio para una
+  // frase larga sin que el texto se salga del lienzo (ver nota abajo) —
+  // "Descuento X%" es lo que cualquier cinta de esquina real muestra.
+  const texto = `Descuento ${pct}%`;
+  const fontSize = 25;
+  const altoBanda = 56;
+
+  // Cinta de esquina clasica (el mismo truco que un "SALE" en una foto de
+  // producto): un rectangulo horizontal normal, rotado -45° alrededor de
+  // un punto FIJO en la diagonal de la esquina (no del centro del texto,
+  // que cambia de ancho segun el %) — asi el texto queda siempre centrado
+  // dentro del lienzo sin importar el largo, y solo las puntas de la cinta
+  // (relleno solido, sin texto) se recortan al salir del borde, que es el
+  // efecto que se busca.
+  const pivotX = 96;
+  const pivotY = 96;
+  const anchoBanda = Math.max(300, texto.length * fontSize * 0.62 + 100);
+  const left = pivotX - anchoBanda / 2;
+  const top = pivotY - altoBanda / 2;
+
   return `
-  <rect x="0" y="0" width="${ancho}" height="34" fill="${COLORS.ink}" />
-  <path d="M ${ancho} 0 L ${ancho + 14} 17 L ${ancho} 34 Z" fill="${COLORS.ink}" />
-  <text x="18" y="23" font-size="17" font-weight="700" fill="${COLORS.bgCard}">${escapeXml(texto)}</text>`;
+  <g transform="rotate(-45 ${pivotX} ${pivotY})">
+    <rect x="${left}" y="${top}" width="${anchoBanda}" height="${altoBanda}" fill="${COLORS.ink}" />
+    <text x="${pivotX}" y="${pivotY + fontSize * 0.34}" font-size="${fontSize}" font-weight="700" fill="${COLORS.bgCard}" text-anchor="middle">${escapeXml(texto)}</text>
+  </g>`;
 }
 
 /** Encabezado compartido: fondo blanco + logo (o texto de respaldo) + tagline + barra de acento. */
@@ -158,7 +180,7 @@ function encabezadoSvg(subtitulo: string, opts: { logoPresente: boolean; descuen
   ${
     opts.logoPresente
       ? ""
-      : `<text x="60" y="106" font-size="52" font-weight="700" fill="${COLORS.ink}">Espazios</text>`
+      : `<text x="260" y="106" font-size="52" font-weight="700" fill="${COLORS.ink}">Espazios</text>`
   }
   <text x="60" y="163" font-size="16" font-style="italic" fill="${COLORS.footer}">Dale vida a cada lugar.</text>
   <text x="60" y="200" font-size="26" fill="${COLORS.inkMuted}">${escapeXml(subtitulo)}</text>`;
