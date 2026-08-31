@@ -17,14 +17,40 @@ de GitHub). Variables de entorno configuradas en el dashboard de Railway:
 `GOOGLE_SERVICE_ACCOUNT_JSON` (contenido del JSON, no la ruta),
 `TARIFAS_ILUSTRATIVAS_SHEET_ID`, `PUBLIC_BASE_URL` (usa la variable
 magica `${{RAILWAY_PUBLIC_DOMAIN}}` de Railway). `PORT` lo inyecta
-Railway solo. Probado end-to-end: `/tools/estimado-ilustrativo` y
-`/tools/detalle-paquete` responden bien con datos reales.
+Railway solo. Probado end-to-end en su momento: `/tools/estimado-
+ilustrativo` y `/tools/detalle-paquete` respondian bien con datos
+reales — **ver el bug critico de 2026-08-28 mas abajo**, la hoja
+cambio de esquema despues de esta prueba y el codigo desplegado quedo
+desactualizado hasta que se mezclo el fix.
+
+**Bug critico encontrado y arreglado en produccion, 2026-08-28.** Al
+mezclar la evolucion del cotizador (ver mas abajo) se detecto que
+`master` — lo que corria en Railway — todavia leia la hoja de tarifas
+con el esquema viejo (`A2:D` = `paquete, m2_min, m2_max, precio_m2`),
+pero la hoja real ya tenia el esquema nuevo (`paquete, Baños,
+Habitaciones, m2, precio_m2, precio_m2 con descuento`) desde *antes* de
+que empezara esta sesion. El codigo viejo terminaba leyendo la columna
+"Baños" como si fuera `m2_min`, "Habitaciones" como `m2_max`, y la
+columna "m2" como si fuera el precio — para cualquier area real de
+cliente el filtro nunca hacia match, caia siempre al caso "aproximado",
+y multiplicaba un numero de la columna m2 (19-60) por el area del
+cliente: precios de unos miles de pesos en vez de millones. Esto
+probablemente llevaba roto desde que el equipo comercial recargo la
+hoja — y segun este mismo archivo el tool ya se habia probado "end to
+end via WhatsApp real" el 2026-08-23, asi que es posible que algun
+cliente real haya visto ese numero. Se mezclo `claude/cotizador-m2-
+evolution-mwndvk` a `master` de inmediato (confirmado con el usuario
+antes, dado que es un cambio a produccion) — Railway confirmo
+"Deployment successful" para el commit `b8becd6`. Queda pendiente que
+alguien confirme con una prueba real (Sandbox o WhatsApp real) que el
+precio ya sale en millones.
 
 Fase actual: **el Workflow nuevo de Isa v2 ya existe en Kapso y tiene un
 system prompt real y detallado** (ver `docs/isa-v2-system-prompt.md`,
-sincronizado 2026-08-18) — calificacion completa (ciudad + tipo + manejo
-de objecion de presupuesto), FAQ, envio de fotos, agendamiento y prueba
-social con videos de TikTok por torre.
+sincronizado 2026-08-28 — el usuario pego el cuerpo completo directo en
+Kapso) — calificacion completa (ciudad + tipo + manejo de objecion de
+presupuesto), FAQ, envio de fotos, agendamiento y prueba social con
+videos de TikTok por torre.
 
 **Alcance real de v1 (segun el prompt en produccion):** califica y agenda
 una sesion con un Ejecutivo Comercial. NO genera cotizacion en PDF — la
