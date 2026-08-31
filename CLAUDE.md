@@ -558,6 +558,42 @@ la politica del proyecto permite crear llaves de servicio, migrar a eso.
 Cliente OAuth usado: `828398821260-86t2omrk0g7dhn08sb6i8d64kvtnte2f.apps.googleusercontent.com`
 (tipo Desktop app, en modo "Testing" con `espazios.co@gmail.com` como test user).
 
+**Bug critico #2 en produccion, 2026-08-31 — refresh token expirado.**
+Yonathan probo el estimado ilustrativo real via WhatsApp (dos
+conversaciones el mismo dia) y Isa respondio repetidas veces "tuve un
+problema generando el estimado ilustrativo". Isa habia recolectado todo
+bien (m2=40, banos=2, tipo_proyecto="Intermedio") — el fallo estaba en
+el backend. Revisando el log de error en Railway (`err` completo del
+`req.log.error` en `tools-server.ts`):
+
+```
+err.message: invalid_grant Error: invalid_grant
+err.response.data.error: invalid_grant
+err.response.data.error_description: Token has been expired or revoked.
+```
+
+Confirma exactamente lo que ya advertia la nota de arriba: el Cliente
+OAuth esta en modo "Testing" en Google Cloud, y Google le pone un
+**limite duro de 7 dias a los refresh tokens de una app en ese modo**,
+sin importar si se usan o no. Las credenciales se generaron el
+2026-08-23 — fallaron el 2026-08-31, 8 dias despues. Afecta a *cualquier*
+llamado que use `getSheetsClient()` (estimado, detalle, cotizador
+dormido), no solo al que se probo.
+
+**Arreglo (pendiente, requiere que alguien con acceso a
+`espazios.co@gmail.com` lo haga manualmente):**
+1. `gcloud auth application-default login` con esa cuenta de nuevo.
+2. Copiar el JSON resultante a la variable `GOOGLE_SERVICE_ACCOUNT_JSON`
+   en Railway (redeploya solo al guardar, no hace falta push a GitHub).
+
+**Esto va a volver a pasar cada ~7 dias** mientras el Cliente OAuth siga
+en modo "Testing" — no es algo que se arregle en el codigo. Dos salidas
+reales para que no sea un problema recurrente: publicar la app OAuth
+(pantalla de consentimiento, de "Testing" a "In production" — los
+refresh tokens de apps publicadas no expiran por tiempo), o migrar a una
+llave de cuenta de servicio clasica si la politica del proyecto alguna
+vez lo permite (ver arriba, hoy bloqueada).
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
@@ -573,10 +609,18 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
       envio de seguimientos programados (`kapso-client.ts`).
 - [x] ~~Desplegar `src/tools-server.ts` en una URL publica real~~ — hecho,
       corre en Railway (ver arriba).
-- [ ] Conectar `generar_estimado_ilustrativo` y `ver_detalle_paquete` como
-      webhook tools en el agent node de Kapso, apuntando a
-      `https://espazios-whatsapp-agent-production.up.railway.app` (URL
-      permanente, ya no hay que actualizarla cada vez).
+- [x] ~~Conectar `generar_estimado_ilustrativo` y `ver_detalle_paquete`
+      como webhook tools en el agent node de Kapso~~ — confirmado con
+      evidencia real 2026-08-31: se vio a Isa recolectar todos los datos
+      (incluido `banos`) y llamar la herramienta en una conversacion de
+      WhatsApp real con Yonathan Murillo (fallo por el token de Google
+      vencido, no por falta de conexion — ver bug critico #2 arriba).
+- [ ] **Urgente:** renovar el refresh token de Google (`gcloud auth
+      application-default login` con `espazios.co@gmail.com`, pegar el
+      JSON nuevo en `GOOGLE_SERVICE_ACCOUNT_JSON` en Railway) — vencido
+      desde 2026-08-31 (ver bug critico #2 arriba), bloquea el estimado
+      ilustrativo por completo. Considerar tambien publicar la app OAuth
+      (sacarla de "Testing") para que esto no se repita cada ~7 dias.
 - [ ] Fotos por zona (`assets/zonas/*.jpg`, 8 archivos — ver
       `assets/README.md`) — ninguna existe todavia, la tarjeta de
       detalle rediseñada 2026-08-28 muestra el placeholder discreto en
