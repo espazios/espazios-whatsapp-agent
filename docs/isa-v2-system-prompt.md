@@ -3,42 +3,57 @@
 Este es el prompt **real, en producción** en el Workflow nuevo de Kapso —
 no es un borrador de Claude, es el que el usuario dejó configurado en el
 agent node. Se versiona aquí para tener historial de cambios. Última
-sincronización: 2026-08-18.
+sincronización: 2026-08-28 — el usuario pegó el cuerpo completo (secciones
+1 a 14) directo en Kapso, así que todo lo de abajo ya está en producción.
 
 **Confirmado en produccion (2026-08-23):** la sección **6.1** (estimado
-ilustrativo) y los ajustes de `m2` en la sección 5 ya están pegados en
-Kapso — probado end-to-end via WhatsApp real.
+ilustrativo) y los ajustes de `m2` en la sección 5 — probado end-to-end
+via WhatsApp real.
 
 **Confirmado en produccion (2026-08-24), probado en Sandbox:** el
 formato de preguntas/opciones de la sección 10 ("Formato de las
 preguntas" / "Formato de las opciones") — negrilla con un asterisco y
-bullets para cualquier pregunta con opciones — ya está pegado y
-funcionando (aunque Isa no siempre deja el salto de línea en blanco
-antes de la pregunta, el resultado le gusto al usuario tal como salió,
-no hace falta forzarlo mas).
+bullets para cualquier pregunta con opciones — (aunque Isa no siempre
+deja el salto de línea en blanco antes de la pregunta, el resultado le
+gusto al usuario tal como salió, no hace falta forzarlo mas).
 
-**Pendiente de pegar en Kapso (2026-08-24):**
-1. El párrafo nuevo al final de la sección 6.1 sobre "si el cliente
-   corrige un dato ya dado" — arregla el bug donde Isa mandaba un
-   mensaje de texto suelto "(completed)" después de regenerar el
-   estimado por una corrección (visto en conversación real, ver
-   CLAUDE.md).
-2. La nota nueva en la sección 5 sobre `celular` (ya disponible por el
-   canal, no se pregunta).
-3. **Cambio grande:** `plazo` y `correo` pasan de recolectarse *después*
-   del estimado ilustrativo a recolectarse *antes* — el estimado ahora
-   se dispara justo despues de `correo` (el ultimo dato), no despues de
-   `m2`. El motivo para pedir `correo` tambien cambia: ahora anuncia que
-   justo despues viene un valor ilustrativo de la cotización. Toca las
-   secciones 5, 6.1 y 9. Ver CLAUDE.md para el detalle completo.
-4. **Cambio grande en la sección 9:** se quita el "paso previo" (mensaje
-   automático de "quién es Espazios" + proceso en bullets) como paso
-   obligatorio antes de agendar — ahora ese contenido (secciones 3 y 7)
-   solo se comparte si el cliente pregunta por Espazios o el proceso.
-   Después del estimado/detalle de paquetes, Isa pasa directo a una
-   pregunta corta: "¿tienes alguna duda, o te gustaría que agendemos...?".
+**Confirmado en produccion (2026-08-28):**
+1. El párrafo al final de la sección 6.1 sobre "si el cliente corrige un
+   dato ya dado" — arregla el bug donde Isa mandaba un mensaje de texto
+   suelto "(completed)" después de regenerar el estimado por una
+   corrección (visto en conversación real, ver CLAUDE.md).
+2. La nota en la sección 5 sobre `celular` (ya disponible por el canal,
+   no se pregunta).
+3. `plazo` y `correo` se recolectan *antes* del estimado ilustrativo, no
+   después — el estimado se dispara justo después de `correo` (el
+   último dato). El motivo para pedir `correo` también cambió: anuncia
+   que justo después viene un valor ilustrativo de la cotización.
+   Secciones 5, 6.1 y 9.
+4. Se quitó el "paso previo" (mensaje automático de "quién es Espazios"
+   + proceso en bullets) como paso obligatorio antes de agendar — ese
+   contenido (secciones 3 y 7) solo se comparte si el cliente pregunta
+   por Espazios o el proceso. Después del estimado/detalle de paquetes,
+   Isa pasa directo a una pregunta corta: "¿tienes alguna duda, o te
+   gustaría que agendemos...?".
 5. Variar la palabra de confirmación ("Perfecto" se estaba repitiendo en
    casi todos los mensajes, se siente robotizado) — sección 10.
+6. **Evolución del cotizador a precio por m2 exacto:** `tipo_proyecto`
+   pasa de 3 a 4 opciones — "Solo Obra Blanca", "Intermedio",
+   "Remodelación Total" y "Carpintería" (antes: "Remodelación completa",
+   "Carpintería", "Solo Obra Blanca"). Variable nueva `banos`,
+   condicional — solo se pregunta si `m2` cae entre 31 y 44 (ambos
+   incluidos). `generar_estimado_ilustrativo` y `ver_detalle_paquete`
+   reciben nombre/ciudad/proyecto/m2/banos/tipo_proyecto; cuando
+   `tipo_proyecto` coincide con uno de los 3 paquetes, la imagen destaca
+   esa tarjeta y manda de una vez el detalle de ese paquete. Secciones
+   5, 6, 6.1 y el ejemplo de la 10. Ver CLAUDE.md para el detalle
+   completo de la decisión y las 3 preguntas de negocio que se
+   resolvieron antes del cambio (banos vs. habitaciones en 31-44 m2,
+   qué pasa con las reglas de Carpintería, y cuál de los dos precios de
+   la hoja se usa).
+7. **Rediseño visual de la tarjeta de detalle:** fotos por zona,
+   etiqueta de descuento y disclaimer legal — vive dentro de la imagen
+   misma, no cambió texto del prompt aparte del punto 6.
 
 **Pendiente de scope (no es un cambio de prompt, es una capacidad
 nueva):** seguimiento automático ~10 min después de compartir el link/
@@ -51,46 +66,6 @@ CLAUDE.md, sección de roadmap.
 (2026-08-24: se probó mover `presupuesto` al final del orden de
 recolección — el usuario pidió revertirlo, se queda donde estaba,
 justo después de `tipo_proyecto`. Ver CLAUDE.md.)
-
-**Pendiente de pegar en Kapso (2026-08-28) — evolución del cotizador a
-precio por m2 exacto:**
-1. `tipo_proyecto` pasa de 3 a 4 opciones — "Solo Obra Blanca",
-   "Intermedio", "Remodelación Total" y "Carpintería" (antes:
-   "Remodelación completa", "Carpintería", "Solo Obra Blanca"). Los tres
-   primeros nombres ahora son exactamente los mismos que los 3 paquetes
-   del estimado ilustrativo. Toca las secciones 5, 6 y el ejemplo de la
-   10.
-2. Variable nueva `banos`, condicional — solo se pregunta si `m2` cae
-   entre 31 y 44 (ambos incluidos). Fuera de esa banda no se pregunta
-   nada (ni banos ni habitaciones). Sección 5 y 6.1.
-3. Sección 6.1: la herramienta ahora recibe `banos` (si aplica) y
-   `tipo_proyecto`. Cuando `tipo_proyecto` coincide con uno de los 3
-   paquetes, la imagen destaca esa tarjeta y la herramienta manda de una
-   vez el detalle ("que incluye") de ese paquete — ya no hay que esperar
-   a que el cliente lo pida. Los otros 2 paquetes se pueden seguir
-   pidiendo en detalle si preguntan. Para "Carpintería" el comportamiento
-   no cambia (imagen general sin destacar nada, sin auto-envío de
-   detalle).
-4. El precio de la imagen ahora es explícitamente "con descuento", con el
-   precio de lista tachado al lado — ya no hace falta que Isa lo mencione
-   en texto (la imagen ya lo dice), pero si el cliente pregunta por qué
-   hay dos precios, puede explicar que el segundo (tachado) es el de
-   lista y el resaltado ya incluye el descuento.
-5. Ver CLAUDE.md para el detalle completo de la decisión y las 3
-   preguntas de negocio que se resolvieron antes de este cambio (banos
-   vs. habitaciones en 31-44 m2, qué pasa con las reglas de Carpintería,
-   y cuál de los dos precios de la hoja se usa).
-
-**Pendiente de pegar en Kapso (2026-08-28) — rediseño visual de la
-tarjeta de detalle:** `ver_detalle_paquete` (sección 6.1, ya actualizada
-arriba en este archivo) recibe ahora también `nombre`, `ciudad` y
-`proyecto` — antes solo pedía `paquete`, `m2` y `banos`. Es el mismo
-cambio de firma que ya tenía `generar_estimado_ilustrativo`, aplicado
-también a la herramienta del detalle porque la tarjeta rediseñada ahora
-muestra esos datos del cliente igual que la tarjeta resumen. El resto
-del rediseño (fotos por zona, etiqueta de descuento, disclaimer legal)
-vive dentro de la imagen misma — no cambia nada del comportamiento de
-Isa ni requiere texto nuevo en el prompt.
 
 Ver notas de revisión al final del archivo.
 
