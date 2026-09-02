@@ -580,11 +580,31 @@ sin importar si se usan o no. Las credenciales se generaron el
 llamado que use `getSheetsClient()` (estimado, detalle, cotizador
 dormido), no solo al que se probo.
 
-**Arreglo (pendiente, requiere que alguien con acceso a
-`espazios.co@gmail.com` lo haga manualmente):**
-1. `gcloud auth application-default login` con esa cuenta de nuevo.
-2. Copiar el JSON resultante a la variable `GOOGLE_SERVICE_ACCOUNT_JSON`
-   en Railway (redeploya solo al guardar, no hace falta push a GitHub).
+**Arreglado 2026-08-31 — confirmado con prueba real.** El usuario
+renovo el token manualmente:
+1. Como el Cliente OAuth ya no permite descargar el secreto de un
+   cliente existente (Google cambio esto — la pantalla de credenciales
+   solo deja "Ver/descargar" en el momento en que se genera un secreto
+   nuevo, no despues), hubo que generar un secreto nuevo desde
+   "APIs y servicios → Credenciales → Cliente de escritorio 1 →
+   Secretos del cliente → Agregar secreto", que si permitio descargar
+   el JSON en ese momento.
+2. Primer intento en Google Cloud Shell: fallo. `gcloud auth
+   application-default login --client-id-file=...` con un Cliente
+   OAuth tipo "Desktop app" en un entorno sin navegador propio cae al
+   flujo `--remote-bootstrap`, que depende del flujo OOB
+   ("out-of-band", copiar/pegar un codigo) que Google deprecio hace
+   tiempo por seguridad — la URL que genera ni siquiera trae
+   `redirect_uri`, y Google la rechaza con "Error 400: invalid_request,
+   Missing required parameter: redirect_uri". No es arreglable
+   copiando la URL distinto — Cloud Shell no sirve para este tipo de
+   cliente OAuth.
+3. Se cambio a correr el mismo comando en Windows local (instalando
+   Google Cloud SDK ahi) — con navegador real disponible, `gcloud`
+   completa el flujo por `http://localhost` sin el problema del OOB.
+   JSON resultante pegado en `GOOGLE_SERVICE_ACCOUNT_JSON` en Railway.
+4. Confirmado con Isa por WhatsApp real: el estimado ilustrativo ya
+   genera bien.
 
 **Esto va a volver a pasar cada ~7 dias** mientras el Cliente OAuth siga
 en modo "Testing" — no es algo que se arregle en el codigo. Dos salidas
@@ -592,7 +612,9 @@ reales para que no sea un problema recurrente: publicar la app OAuth
 (pantalla de consentimiento, de "Testing" a "In production" — los
 refresh tokens de apps publicadas no expiran por tiempo), o migrar a una
 llave de cuenta de servicio clasica si la politica del proyecto alguna
-vez lo permite (ver arriba, hoy bloqueada).
+vez lo permite (ver arriba, hoy bloqueada). Pendiente decidir cual de
+las dos se persigue — por ahora queda como proceso manual repetible
+(pasos 1-3 arriba) cuando vuelva a expirar.
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
@@ -615,12 +637,16 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
       (incluido `banos`) y llamar la herramienta en una conversacion de
       WhatsApp real con Yonathan Murillo (fallo por el token de Google
       vencido, no por falta de conexion — ver bug critico #2 arriba).
-- [ ] **Urgente:** renovar el refresh token de Google (`gcloud auth
-      application-default login` con `espazios.co@gmail.com`, pegar el
-      JSON nuevo en `GOOGLE_SERVICE_ACCOUNT_JSON` en Railway) — vencido
-      desde 2026-08-31 (ver bug critico #2 arriba), bloquea el estimado
-      ilustrativo por completo. Considerar tambien publicar la app OAuth
-      (sacarla de "Testing") para que esto no se repita cada ~7 dias.
+- [x] ~~**Urgente:** renovar el refresh token de Google~~ — hecho
+      2026-08-31, confirmado con prueba real por WhatsApp (ver bug
+      critico #2 arriba, incluye el paso a paso que si funciono en
+      Windows local).
+- [ ] Decidir y ejecutar la solucion durable para que el token no
+      vuelva a vencer cada ~7 dias: publicar la app OAuth (sacarla de
+      "Testing" en Google Cloud) o migrar a llave de cuenta de servicio
+      si la politica del proyecto lo permite algun dia. Mientras tanto,
+      repetir el proceso manual (ver bug critico #2) cuando vuelva a
+      fallar con `invalid_grant`.
 - [ ] Fotos por zona (`assets/zonas/*.jpg`, 8 archivos — ver
       `assets/README.md`) — ninguna existe todavia, la tarjeta de
       detalle rediseñada 2026-08-28 muestra el placeholder discreto en
