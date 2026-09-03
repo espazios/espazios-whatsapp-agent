@@ -616,6 +616,42 @@ vez lo permite (ver arriba, hoy bloqueada). Pendiente decidir cual de
 las dos se persigue — por ahora queda como proceso manual repetible
 (pasos 1-3 arriba) cuando vuelva a expirar.
 
+**Intento de solucion durable, 2026-09-02 — se persiguieron ambas
+salidas, ninguna cerro del todo en esta sesion:**
+
+1. **Llave de cuenta de servicio clasica.** El usuario si tiene rol de
+   administrador de politicas de organizacion y logro anular
+   `constraints/iam.disableServiceAccountKeyCreation` a nivel de
+   proyecto (Politicas de la organizacion → esa restriccion → "Anular
+   politica del elemento superior" → regla con aplicacion
+   "Desactivado" → Configurar politica — la UI muestra un paso de
+   "Probar cambios"/simulacion que es solo un dry-run, hay que volver
+   atras y guardar la politica real aparte). Confirmado guardado
+   ("Estado: No aplicada" para el proyecto), pero **crear la llave
+   sigue fallando** con el mismo error (`iam.disableServiceAccountKeyCreation`
+   bloqueada "en tu empresa") incluso despues de esperar varios
+   minutos — probablemente hay una restriccion puesta mas arriba (la
+   "aplicacion de Seguridad de forma predeterminada" que Google le pone
+   a organizaciones/proyectos nuevos) que un "anular" a nivel de solo
+   proyecto no alcanza a vencer. No se investigo mas a fondo — requeriria
+   acceso a un nivel de Organizacion que este setup (proyecto personal
+   sin dominio de Workspace) puede ni siquiera tener expuesto en la
+   consola.
+2. **Publicar la app OAuth.** Antes de intentarlo, se redujo el scope
+   pedido en `src/lib/google-auth.ts`: se quito `.../auth/drive` (el
+   unico de los 4 scopes que Google clasifica como "restringido" —
+   exige una evaluacion de seguridad para publicar; los otros tres
+   —Sheets, Calendar, Gmail.send— son "sensibles", verificacion mas
+   liviana). Drive solo lo usaba `generar_cotizacion`
+   (`getDriveClient()`), que ya esta dormido — cero impacto en
+   produccion. **Pendiente:** falta repetir el login con el scope
+   reducido (el token actual en Railway todavia tiene los 4 scopes
+   viejos, sigue funcionando bien) y luego intentar publicar la app
+   desde "Google Auth Platform" → "Publico" en la consola.
+
+Mientras ninguna de las dos cierre, sigue en pie el proceso manual de
+renovar el token cada ~7 dias (pasos 1-3 mas arriba).
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +

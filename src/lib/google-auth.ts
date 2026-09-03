@@ -1,13 +1,22 @@
 import { google } from "googleapis";
 import fs from "node:fs";
 
-// Cuenta de servicio unica para Drive, Sheets, Calendar y Gmail.
+// Cuenta de servicio unica para Sheets, Calendar y Gmail.
 // Gmail requiere delegacion de dominio (impersonar un buzon real de Espazios)
-// si se usa desde una cuenta de servicio; Drive/Sheets/Calendar no la necesitan
-// mientras la plantilla, la carpeta de salida y el calendario del asesor
-// esten compartidos directamente con el correo de la cuenta de servicio.
+// si se usa desde una cuenta de servicio; Sheets/Calendar no la necesitan
+// mientras la hoja y el calendario del asesor esten compartidos directamente
+// con el correo de la cuenta de servicio.
+//
+// 2026-09-02: se quito el scope de Drive (`.../auth/drive`) a proposito —
+// es el unico que Google clasifica como "restringido" (exige evaluacion de
+// seguridad para publicar la app OAuth fuera de modo "Testing"), y hoy nada
+// en produccion lo necesita: el estimado ilustrativo solo lee Sheets. Lo
+// unico que usaba Drive es `generar_cotizacion`/`getDriveClient()`
+// (`src/tools/cotizador/generate-quote.ts`), que ya esta dormido — no es
+// parte del lanzamiento de Isa v2 (ver CLAUDE.md). Si se retoma esa funcion,
+// hay que agregar el scope de vuelta ANTES, o `getDriveClient()` fallara con
+// un error de permisos (el token no tendria alcance a Drive).
 const SCOPES = [
-  "https://www.googleapis.com/auth/drive",
   "https://www.googleapis.com/auth/spreadsheets",
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/gmail.send",
