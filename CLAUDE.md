@@ -687,6 +687,92 @@ todo hasta que pasen esos 7 dias sin que vuelva a fallar. Si vuelve a
 pasar, revisar primero si la app sigue en estado "En produccion" (no se
 revirtio sola a "Testing") antes de asumir que es el mismo bug de antes.
 
+## Base de datos de leads de Isa v2 — decision de arquitectura (2026-09-04)
+
+El usuario pidio un informe con las variables que recolecta Isa v2
+(nombre, ciudad, tipo_proyecto, presupuesto, conjunto_o_barrio, m2,
+banos, plazo, correo), incluyendo la fecha/hora cuando el cliente agenda
+una llamada. Investigacion antes de construir nada:
+
+- **Kapso no guarda esto de forma estructurada para Isa v2.** La Isa
+  vieja (el Workflow tipo arbol de decision, "Precalificacion Leads EZ",
+  el que sigue atendiendo el numero real de produccion — ver mas abajo)
+  si tiene un registro limpio por conversacion (`nombre_cliente`,
+  `ciudad_vivienda`, `tipo_proyecto`, `presupuesto`, `conjunto`, `plazo`,
+  `correo`, `lead_guardado`), visible via `search_logs` (MCP de Kapso,
+  `source=function_invocation_event`) porque usa un paso tipo `Function`
+  que loguea `execution_context.vars` completo en cada invocacion. Isa
+  v2 es un `agent node` (LLM libre) — su "memoria" vive solo en el
+  contexto de la conversacion con el modelo, sin ningun paso que la deje
+  en una tabla consultable. Se revisaron a fondo los logs de Kapso
+  (flow_event, function_invocation_event, external_api_log,
+  webhook_delivery) buscando el payload de las llamadas a
+  `generar_estimado_ilustrativo`/`ver_detalle_paquete` y no aparece en
+  ningun lado — solo metadata tecnica (que tool se llamo, cuanto tardo).
+- **Nuestro propio servidor tampoco lo guarda.** `tools-server.ts` recibe
+  nombre/ciudad/proyecto/m2/banos/tipoProyecto en cada llamada pero es
+  sin estado — nunca los escribe a ningun lado, solo los usa para
+  calcular el precio y devolver la imagen.
+- **Hallazgo aparte, importante:** el numero de produccion real
+  (`+57 310 8708467`, `whatsapp_config.kind: "production"`) todavia
+  atiende clientes reales con la **Isa vieja** (IVR/arbol de decision,
+  botones de opciones) — se confirmo revisando `search_logs` por 30
+  dias, con al menos 10 conversaciones reales distintas. Isa v2 (agent
+  node, texto libre) solo se ha probado con Yonathan Murillo, en un
+  `whatsapp_config_id` distinto — osea el numero de pruebas interno, no
+  el de produccion. Esto es consistente con el diseño ya documentado
+  arriba ("solo cuando la version nueva este lista y probada se cambia
+  el apuntamiento del numero de produccion") — no es un bug, solo una
+  confirmacion de que el corte todavia no ha pasado.
+
+**Decision: construir `guardar_lead` como una base de datos DENTRO de
+Kapso (Cloudflare D1 via Kapso Functions), no en un Google Sheet.**
+Se evaluaron ambas opciones — ver la comparacion completa en el chat de
+esta sesion. Kapso Functions (Cloudflare Workers) tienen acceso
+automatico a `env.DB`, una base D1 (SQL, compatible SQLite) compartida
+por todo el proyecto — es el mismo mecanismo que ya usa la funcion
+`Precalificacion` de la Isa vieja. Ventaja principal sobre el Sheet: cero
+dependencia del OAuth de Google (el que se ha vencido 2 veces esta
+sesion).
+
+**Limitacion real encontrada:** esta sesion de Claude Code no tiene
+salida de red hacia `api.kapso.ai` (bloqueada por el proxy del sandbox,
+confirmado con `403 policy denial` al probar) y el MCP de Kapso
+conectado aqui no expone creacion/deploy de Functions (solo
+customers/whatsapp_*/search_logs/etc.) — asi que **no se pudo automatizar
+el deploy desde esta sesion**, a pesar de tener ya un `KAPSO_API_KEY`
+(guardado en `.env` local, no committeado). El deploy quedo como pasos
+manuales para el usuario en el dashboard de Kapso.
+
+**Construido, pendiente de desplegar por el usuario:**
+- `kapso-functions/guardar-lead.js` — tool que Isa v2 llama 2 veces
+  (justo despues del estimado, con los 8 datos de calificacion; justo
+  despues del agendamiento, con `tipo_agendamiento`/`fecha_llamada`/
+  `hora_llamada`). Usa el telefono del contacto (inyectado automatico por
+  Kapso en `execution_context.context.phone_number`, nunca lo pasa Isa
+  como argumento) como llave para hacer upsert sin duplicar filas. Crea
+  la tabla sola (`CREATE TABLE IF NOT EXISTS`) en la primera invocacion.
+- `kapso-functions/leads-reporte.js` — endpoint publico de solo lectura,
+  devuelve una tabla HTML (o JSON con `?format=json`) de todos los leads
+  guardados — el "informe" que se pidio. Proteccion opcional via Secret
+  `REPORT_TOKEN` (`?token=...` en la URL).
+- `kapso-functions/README.md` — paso a paso completo del deploy (crear
+  las 2 funciones en el dashboard, pegar el codigo, deploy, y declarar
+  `guardar_lead` como tool del agent node de Isa v2 con su JSON schema).
+- `docs/isa-v2-system-prompt.md` — secciones 6.1 y 9 actualizadas: llaman
+  a `guardar_lead` en los 2 momentos, y la pregunta de agendar llamada
+  ahora pide **dia y horario** por separado (antes solo horario, sin
+  dia — bug ya anotado en las notas de revision del archivo, ahora
+  resuelto). **No pegar este prompt en Kapso hasta desplegar las 2
+  funciones primero** — el prompt llama un tool que todavia no existe.
+
+**Limite conocido que NO resuelve esta base de datos:** para reuniones
+(virtual/presencial), Isa nunca sabe la fecha/hora exacta que el cliente
+elige — eso queda en Google Calendar, fuera del alcance de Kapso, porque
+sigue siendo el link estatico de Appointment Schedule (no la integracion
+real de Calendar API que es la Prioridad 2 del roadmap). El reporte solo
+puede decir "eligio reunion virtual/presencial", no cuando.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
@@ -696,10 +782,23 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
 - [ ] `sync_hubspot`: falta construir. Cuando se haga, mapear `presupuesto`
       (numero exacto, ej. "$15") al rango que espera la propiedad
       `rango_presupuesto` de HubSpot (ej. "Entre $15 y $30 millones").
-- [ ] Confirmar si la franja horaria de "llamada" en el prompt deberia
-      capturar tambien el dia, no solo el horario (ambiguo hoy).
-- [ ] `KAPSO_API_KEY` / `KAPSO_PHONE_NUMBER_ID` para cuando se construya el
-      envio de seguimientos programados (`kapso-client.ts`).
+- [x] ~~Confirmar si la franja horaria de "llamada" en el prompt deberia
+      capturar tambien el dia, no solo el horario~~ — resuelto 2026-09-04,
+      ver seccion "Base de datos de leads de Isa v2" arriba. Pendiente
+      solo el deploy manual de las Kapso Functions.
+- [x] ~~`KAPSO_API_KEY`~~ — ya se genero y esta guardada en `.env` local
+      (no committeada). Sirve para probar `kapso-functions/*` desde una
+      maquina con salida de red a `api.kapso.ai` (esta sesion no la
+      tiene). `KAPSO_PHONE_NUMBER_ID` sigue pendiente para cuando se
+      construya el envio de seguimientos programados (`kapso-client.ts`).
+      **Pendiente: el usuario tambien debe guardar `KAPSO_API_KEY` en
+      Railway** si algun dia `tools-server.ts` la necesita.
+- [ ] Desplegar `kapso-functions/guardar-lead.js` y
+      `kapso-functions/leads-reporte.js` en el dashboard de Kapso, y
+      declarar `guardar_lead` como tool del agent node de Isa v2 — ver
+      `kapso-functions/README.md` para el paso a paso completo. Sin esto,
+      no pegar el `docs/isa-v2-system-prompt.md` actualizado (llama un
+      tool que no existiria todavia).
 - [x] ~~Desplegar `src/tools-server.ts` en una URL publica real~~ — hecho,
       corre en Railway (ver arriba).
 - [x] ~~Conectar `generar_estimado_ilustrativo` y `ver_detalle_paquete`
