@@ -616,41 +616,76 @@ vez lo permite (ver arriba, hoy bloqueada). Pendiente decidir cual de
 las dos se persigue — por ahora queda como proceso manual repetible
 (pasos 1-3 arriba) cuando vuelva a expirar.
 
-**Intento de solucion durable, 2026-09-02 — se persiguieron ambas
-salidas, ninguna cerro del todo en esta sesion:**
+**Solucion durable — RESUELTO, 2026-09-03. Se persiguieron dos salidas en
+paralelo (ver intento original 2026-09-02 abajo); la de publicar la app
+OAuth cerro y quedo confirmada con prueba real.**
 
-1. **Llave de cuenta de servicio clasica.** El usuario si tiene rol de
-   administrador de politicas de organizacion y logro anular
-   `constraints/iam.disableServiceAccountKeyCreation` a nivel de
-   proyecto (Politicas de la organizacion → esa restriccion → "Anular
-   politica del elemento superior" → regla con aplicacion
-   "Desactivado" → Configurar politica — la UI muestra un paso de
-   "Probar cambios"/simulacion que es solo un dry-run, hay que volver
-   atras y guardar la politica real aparte). Confirmado guardado
-   ("Estado: No aplicada" para el proyecto), pero **crear la llave
-   sigue fallando** con el mismo error (`iam.disableServiceAccountKeyCreation`
-   bloqueada "en tu empresa") incluso despues de esperar varios
-   minutos — probablemente hay una restriccion puesta mas arriba (la
-   "aplicacion de Seguridad de forma predeterminada" que Google le pone
-   a organizaciones/proyectos nuevos) que un "anular" a nivel de solo
-   proyecto no alcanza a vencer. No se investigo mas a fondo — requeriria
-   acceso a un nivel de Organizacion que este setup (proyecto personal
-   sin dominio de Workspace) puede ni siquiera tener expuesto en la
-   consola.
-2. **Publicar la app OAuth.** Antes de intentarlo, se redujo el scope
-   pedido en `src/lib/google-auth.ts`: se quito `.../auth/drive` (el
-   unico de los 4 scopes que Google clasifica como "restringido" —
-   exige una evaluacion de seguridad para publicar; los otros tres
-   —Sheets, Calendar, Gmail.send— son "sensibles", verificacion mas
-   liviana). Drive solo lo usaba `generar_cotizacion`
-   (`getDriveClient()`), que ya esta dormido — cero impacto en
-   produccion. **Pendiente:** falta repetir el login con el scope
-   reducido (el token actual en Railway todavia tiene los 4 scopes
-   viejos, sigue funcionando bien) y luego intentar publicar la app
-   desde "Google Auth Platform" → "Publico" en la consola.
+1. **Llave de cuenta de servicio clasica — abandonado.** El usuario si
+   tiene rol de administrador de politicas de organizacion y logro anular
+   `constraints/iam.disableServiceAccountKeyCreation` a nivel de proyecto
+   (Politicas de la organizacion → esa restriccion → "Anular politica del
+   elemento superior" → regla con aplicacion "Desactivado" → Configurar
+   politica — la UI muestra un paso de "Probar cambios"/simulacion que es
+   solo un dry-run, hay que volver atras y guardar la politica real
+   aparte). Confirmado guardado ("Estado: No aplicada" para el proyecto),
+   pero **crear la llave seguia fallando** con el mismo error
+   (`iam.disableServiceAccountKeyCreation` bloqueada "en tu empresa")
+   incluso despues de esperar varios minutos — probablemente una
+   restriccion puesta mas arriba (la "aplicacion de Seguridad de forma
+   predeterminada" que Google le pone a organizaciones/proyectos nuevos)
+   que un "anular" a nivel de solo proyecto no alcanza a vencer.
+   Requeriria acceso a nivel de Organizacion que este setup (proyecto
+   personal sin dominio de Workspace) puede ni siquiera tener expuesto en
+   la consola — no se siguio este camino, se prefirio el de publicar la
+   app.
+2. **Publicar la app OAuth — funciono.** Se redujo el scope pedido en
+   `src/lib/google-auth.ts`: se quito `.../auth/drive` (el unico de los 4
+   scopes que Google clasifica como "restringido" — exige evaluacion de
+   seguridad para publicar; los otros tres —Sheets, Calendar,
+   Gmail.send— son "sensibles", verificacion mas liviana pero igual
+   exige, entre otros requisitos, un enlace de pagina de inicio y una
+   politica de privacidad publica). Drive solo lo usaba
+   `generar_cotizacion` (`getDriveClient()`), que ya esta dormido — cero
+   impacto en produccion (commit `cdd92b1`).
+   - Se intento primero marcar la app como "Interno" (evita toda la
+     verificacion) — **revertido de inmediato**: bloqueo al propio
+     `espazios.co@gmail.com` para autenticar ("Error 403: org_internal"),
+     porque esa cuenta no pertenece al dominio/Organizacion de Google
+     Workspace atado al proyecto. Se volvio a "Externo".
+   - Google exigio 2 datos de marca antes de dejar pasar a "En
+     produccion": **pagina de inicio** (se uso la pagina real ya
+     existente de Espazios, `https://www.espazios.com.co/`, aunque el
+     usuario advirtio que esta desactualizada) y **URL de politica de
+     privacidad** (no existia ninguna — se redacto una nueva desde cero,
+     con los datos reales de tratamiento de datos de Espazios y
+     referencia a la Ley 1581 de 2012/Decreto 1377 de 2013, y se publico
+     como Claude Artifact — ver nota abajo, pendiente migrarla a una
+     pagina real en `espazios.com.co` cuando el usuario tenga quien la
+     suba).
+   - Con esos 2 datos la app paso a **Externo + En produccion**.
+   - Se repitio `gcloud auth application-default login` (mismo cliente
+     OAuth de escritorio, scopes reducidos) desde Windows local — la
+     pantalla de "Google no verifico esta app" **si sigue saliendo**
+     (eso depende de que la app pase la verificacion completa de Google,
+     no de si esta en modo Testing o Produccion; con pocos usuarios,
+     Google deja avanzar igual con esa advertencia) pero eso no afecta la
+     duracion del refresh token — lo que si cambia con "En produccion" es
+     que el limite duro de 7 dias, especifico del modo "Testing",
+     desaparece. JSON nuevo pegado en `GOOGLE_SERVICE_ACCOUNT_JSON` en
+     Railway, deploy confirmado.
+   - **Confirmado con prueba real, 2026-09-03 ~7:35pm:** conversacion de
+     WhatsApp con Yonathan Murillo (revisada via el MCP de Kapso,
+     `search_logs`) — Isa pidio el correo, genero y entrego la imagen del
+     estimado ilustrativo sin errores (`outbound image delivered`), y
+     mando la invitacion a ver detalle de paquetes. Cero eventos de
+     problema en las ultimas 24h para ese flujo.
 
-Mientras ninguna de las dos cierre, sigue en pie el proceso manual de
-renovar el token cada ~7 dias (pasos 1-3 mas arriba).
+**Pendiente de verificar con el tiempo:** el token nuevo se emitio bajo
+la app ya en "En produccion", asi que en teoria no deberia volver a
+expirar a los 7 dias como antes — pero esto no se puede confirmar del
+todo hasta que pasen esos 7 dias sin que vuelva a fallar. Si vuelve a
+pasar, revisar primero si la app sigue en estado "En produccion" (no se
+revirtio sola a "Testing") antes de asumir que es el mismo bug de antes.
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
@@ -677,12 +712,17 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
       2026-08-31, confirmado con prueba real por WhatsApp (ver bug
       critico #2 arriba, incluye el paso a paso que si funciono en
       Windows local).
-- [ ] Decidir y ejecutar la solucion durable para que el token no
-      vuelva a vencer cada ~7 dias: publicar la app OAuth (sacarla de
-      "Testing" en Google Cloud) o migrar a llave de cuenta de servicio
-      si la politica del proyecto lo permite algun dia. Mientras tanto,
-      repetir el proceso manual (ver bug critico #2) cuando vuelva a
-      fallar con `invalid_grant`.
+- [x] ~~Decidir y ejecutar la solucion durable para que el token no
+      vuelva a vencer cada ~7 dias~~ — hecho 2026-09-03: app OAuth movida
+      a Externo + "En produccion" (scope de Drive removido antes,
+      pagina de inicio y politica de privacidad agregadas), token nuevo
+      generado y confirmado sin fallos en una conversacion real de
+      WhatsApp (ver "Solucion durable" arriba). Pendiente solo verificar
+      con el tiempo que efectivamente no vuelva a expirar a los 7 dias.
+- [ ] Migrar la politica de privacidad del Claude Artifact a una pagina
+      real en `espazios.com.co`, y actualizar la URL en Google Auth
+      Platform — pospuesto a pedido del usuario ("por ahora garanticemos
+      produccion de Isa V2") hasta que tenga quien la publique.
 - [ ] Fotos por zona (`assets/zonas/*.jpg`, 8 archivos — ver
       `assets/README.md`) — ninguna existe todavia, la tarjeta de
       detalle rediseñada 2026-08-28 muestra el placeholder discreto en
