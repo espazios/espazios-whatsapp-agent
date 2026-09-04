@@ -35,6 +35,11 @@ guiones) — `slugZona()` en `render.ts`. Con las 7 zonas de hoy:
   "Incluye" aparece una zona con otro nombre, el archivo debe llamarse
   igual (normalizado) o se queda con el placeholder.
 
+  **Cargadas 2026-09-04** — las 8 ya existen. `habitacion-2.jpg` y
+  `habitacion-3.jpg` son el mismo archivo (el usuario subio la misma
+  foto para ambas); reemplazar cualquiera de las dos cuando haya una
+  foto distinta.
+
   Las fotos viejas por paquete (`paquetes/*.jpg`) ya no las usa el
   código — se pueden borrar cuando alguien confirme que no hacen falta
   en otro lado.

@@ -723,10 +723,16 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
       real en `espazios.com.co`, y actualizar la URL en Google Auth
       Platform — pospuesto a pedido del usuario ("por ahora garanticemos
       produccion de Isa V2") hasta que tenga quien la publique.
-- [ ] Fotos por zona (`assets/zonas/*.jpg`, 8 archivos — ver
-      `assets/README.md`) — ninguna existe todavia, la tarjeta de
-      detalle rediseñada 2026-08-28 muestra el placeholder discreto en
-      las 8 zonas mientras tanto.
+- [x] ~~Fotos por zona (`assets/zonas/*.jpg`, 8 archivos)~~ — cargadas
+      2026-09-04. El usuario las subio a una carpeta de Google Drive
+      (nombradas ya con el slug correcto de cada zona); se descargaron
+      con el conector de Drive y se convirtieron de PNG a JPG con
+      `sharp`. Cubren las 8 zonas. **Nota:** `habitacion-2.jpg` y
+      `habitacion-3.jpg` son el mismo archivo (byte a byte) — el usuario
+      subio la misma foto para ambas zonas, asi que hoy las dos tarjetas
+      se ven con la misma foto generica de habitacion vacia. Funciona
+      bien igual (no rompe nada), pero si consigue una foto distinta
+      para una de las dos, reemplazar el archivo correspondiente.
 - [ ] Si mas adelante se decide automatizar el PDF de cotizacion detallado:
       retomar `COTIZADOR_TEMPLATE_ID` (pendiente, ver abajo) — el estimado
       ilustrativo de 3 paquetes ya no depende de esto.
