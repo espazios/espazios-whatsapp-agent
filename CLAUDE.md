@@ -840,22 +840,32 @@ conteo de llamadas en el log de la conversacion.
 `guardar_lead_db`.** El usuario sincronizo el prompt real de Kapso con
 este repo y aparece llamando **`guardar_lead_db`** (no `guardar_lead`)
 en las secciones 6.1 y 9 — el asistente de IA de Kapso debio renombrar
-el tool al reconectarlo como Function Tool nativo, despues de las 2
-invocaciones confirmadas arriba (esas fueron con el nombre viejo
-`guardar_lead`). El prompt tambien gano instrucciones mas robustas:
-llamada obligatoria (no solo "guarda el lead") en los 2 momentos, puede
-volver a llamarse si el cliente corrige/agrega notas de agendamiento, y
-nunca afirmar que se guardo si la herramienta da error. Queda una
-referencia vieja sin actualizar en la ultima frase de la seccion 9
-("guardados con `guardar_lead`") — inconsistencia menor, es solo texto
-descriptivo, no rompe nada. **Confirmado por el usuario, 2026-09-05:**
-el tool en la pestaña "Tools" del agent node si se llama exactamente
-`guardar_lead_db`, coincidiendo con el prompt ya sincronizado —
-`kapso-functions/README.md` (paso 3) tambien se actualizo con el nombre
-nuevo. Sigue pendiente, no urgente: una prueba real mas de una
-conversacion completa para reconfirmar que el guardado/upsert sigue
-funcionando bien bajo el nombre nuevo (las 2 invocaciones ya confirmadas
-arriba fueron con el nombre viejo `guardar_lead`).
+el tool al reconectarlo como Function Tool nativo. El prompt tambien
+gano instrucciones mas robustas: llamada obligatoria (no solo "guarda
+el lead") en los 2 momentos, puede volver a llamarse si el cliente
+corrige/agrega notas de agendamiento, y nunca afirmar que se guardo si
+la herramienta da error. Queda una referencia vieja sin actualizar en
+la ultima frase de la seccion 9 ("guardados con `guardar_lead`") —
+inconsistencia menor, es solo texto descriptivo, no rompe nada.
+**Confirmado por el usuario, 2026-09-05:** el tool en la pestaña
+"Tools" del agent node si se llama exactamente `guardar_lead_db`,
+coincidiendo con el prompt ya sincronizado — `kapso-functions/
+README.md` (paso 3) tambien se actualizo con el nombre nuevo.
+
+**Correccion, 2026-09-05:** al releer los `flow_event` (`search_logs`,
+`event_type=agent_tool_called`) de esa misma conversacion de prueba se
+confirmo que **las 2 invocaciones de la seccion "RESUELTO" arriba ya
+eran con el nombre `guardar_lead_db`**, no con el nombre viejo
+`guardar_lead` como se anoto por error mas arriba — el atributo
+`tool_name` de ambos eventos `agent_tool_called` (07:28:03 y
+07:31:08 hora Colombia) dice literalmente `guardar_lead_db`, con
+`tool_type: "function_tool"`. Osea que el rename ya estaba en
+produccion desde antes de esa prueba, no despues — la nota original
+tenia la secuencia de tiempo invertida. No hace falta entonces una
+prueba adicional solo para confirmar el nombre nuevo: las 2
+invocaciones ya documentadas (status 200, upsert correcto con
+`fecha_llamada`/`hora_llamada` incluidas) YA fueron bajo
+`guardar_lead_db`.
 
 **Pendiente, no urgente:** decidir si `leads-reporte-isa-v2` (el
 endpoint HTML/JSON de solo lectura) sigue haciendo falta ahora que
