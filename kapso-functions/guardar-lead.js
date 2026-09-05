@@ -51,7 +51,7 @@ async function handler(request, env) {
   }
 
   await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS leads (
+    `CREATE TABLE IF NOT EXISTS leads_isa_v2 (
       telefono TEXT PRIMARY KEY,
       nombre TEXT,
       ciudad TEXT,
@@ -98,7 +98,7 @@ async function handler(request, env) {
   const ahora = new Date().toISOString();
   const conversationId = context.conversation_id || null;
 
-  const existente = await env.DB.prepare("SELECT telefono FROM leads WHERE telefono = ?")
+  const existente = await env.DB.prepare("SELECT telefono FROM leads_isa_v2 WHERE telefono = ?")
     .bind(telefono)
     .first();
 
@@ -112,7 +112,7 @@ async function handler(request, env) {
     const setClause = camposPresentes.map((campo) => `${campo} = ?`).join(", ");
     const valores = camposPresentes.map((campo) => input[campo]);
     await env.DB.prepare(
-      `UPDATE leads SET ${setClause}, actualizado_en = ?, conversation_id = ? WHERE telefono = ?`
+      `UPDATE leads_isa_v2 SET ${setClause}, actualizado_en = ?, conversation_id = ? WHERE telefono = ?`
     )
       .bind(...valores, ahora, conversationId, telefono)
       .run();
@@ -120,7 +120,7 @@ async function handler(request, env) {
     const columnas = ["telefono", ...camposPresentes, "conversation_id", "creado_en", "actualizado_en"];
     const marcadores = columnas.map(() => "?").join(", ");
     const valores = [telefono, ...camposPresentes.map((campo) => input[campo]), conversationId, ahora, ahora];
-    await env.DB.prepare(`INSERT INTO leads (${columnas.join(", ")}) VALUES (${marcadores})`)
+    await env.DB.prepare(`INSERT INTO leads_isa_v2 (${columnas.join(", ")}) VALUES (${marcadores})`)
       .bind(...valores)
       .run();
   }

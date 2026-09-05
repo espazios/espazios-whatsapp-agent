@@ -40,7 +40,7 @@ async function handler(request, env) {
   }
 
   await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS leads (
+    `CREATE TABLE IF NOT EXISTS leads_isa_v2 (
       telefono TEXT PRIMARY KEY,
       nombre TEXT,
       ciudad TEXT,
@@ -61,7 +61,7 @@ async function handler(request, env) {
     )`
   ).run();
 
-  const rows = await env.DB.prepare("SELECT * FROM leads ORDER BY actualizado_en DESC").all();
+  const rows = await env.DB.prepare("SELECT * FROM leads_isa_v2 ORDER BY actualizado_en DESC").all();
   const leads = rows.results || [];
 
   if (url.searchParams.get("format") === "json") {
