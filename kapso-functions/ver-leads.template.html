@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Ver leads Isa v2</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #F6FAF8;
+      color: #123B38;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    h1 { font-size: 22px; margin-bottom: 8px; }
+    p { color: #4F6B67; margin-top: 0; }
+    button {
+      font-size: 18px;
+      padding: 14px 32px;
+      margin-top: 16px;
+      background: #6FBE94;
+      color: #123B38;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <h1>Informe de leads — Isa v2</h1>
+  <p>Haz clic para ver la tabla de leads guardados en la base de datos.</p>
+  <!--
+    Por que un formulario en vez de un link normal: el endpoint de invoke
+    de Kapso solo acepta POST. Un link o pegar la URL en la barra de
+    direcciones manda un GET (el navegador da "Page not found"). Un
+    <form method="POST"> si manda un POST real al enviarlo.
+  -->
+  <form method="POST" action="https://api.kapso.ai/platform/v1/functions/REEMPLAZA-CON-EL-ID-DE-leads-reporte/invoke?token=REEMPLAZA-CON-TU-REPORT_TOKEN">
+    <button type="submit">Ver leads</button>
+  </form>
+</body>
+</html>

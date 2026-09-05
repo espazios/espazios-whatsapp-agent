@@ -47,9 +47,23 @@ llama (ese se define aparte en el paso 3, y sí debe ser exactamente
 5. (Recomendado) Pestaña **Secrets** de esta función → agrega
    `REPORT_TOKEN` con un valor que solo tú conozcas (cualquier texto
    largo). Sin esto, cualquiera con el link ve los leads.
-6. Copia la **Invoke URL** que muestra el dashboard — esa es la URL del
-   informe. Si configuraste `REPORT_TOKEN`, ábrela como
-   `<invoke-url>?token=<tu-valor>`.
+6. Copia la **Invoke URL** que muestra el dashboard.
+
+**Importante — no pegues esa URL directo en la barra de direcciones del
+navegador.** El endpoint `/invoke` de Kapso solo acepta peticiones
+`POST`; pegar la URL y darle Enter manda un `GET`, que responde
+"Page not found" (no es un error de la función, el "Test" del dashboard
+sí usa `POST` y por eso ahí funciona). Usa en cambio
+**`ver-leads.template.html`** de esta misma carpeta:
+
+1. Copia ese archivo a algo como `ver-leads.html` (fuera del repo, no lo
+   commitees con el token real adentro).
+2. Reemplaza `REEMPLAZA-CON-EL-ID-DE-leads-reporte` por el ID de tu
+   función `leads-reporte-isa-v2`, y `REEMPLAZA-CON-TU-REPORT_TOKEN` por
+   el valor real de tu `REPORT_TOKEN`.
+3. Guarda el archivo en tu computador y ábrelo con doble clic cada vez
+   que quieras ver el informe — tiene un botón "Ver leads" que sí manda
+   el `POST` correcto.
 
 ## 3. Conectar `guardar_lead` como tool del agent node de Isa v2
 
