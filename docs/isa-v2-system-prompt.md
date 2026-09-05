@@ -133,6 +133,19 @@ precios ni logica de agendamiento**:
    documento formal; dentro del mensaje se mantienen las reglas
    normales de puntuación (mayúscula despues de punto, etc.).
 
+**Cambio 2026-09-05, mismo dia — descripciones de tipo_proyecto
+acortadas.** El usuario mando una captura real de WhatsApp: la lista de
+opciones de tipo_proyecto se veia mal — cada opcion es larga, WhatsApp
+no sangra la linea cuando se parte en dos, y las lineas de continuacion
+quedan pegadas al margen izquierdo igual que el inicio de la siguiente
+opcion, mezclando todo en un bloque de texto. No era un problema de
+vineta vs. numero (el wrap pasa igual con cualquiera de los dos) — la
+descripcion entre parentesis de cada opcion se acorto (secciones 6 y
+10) para que quepa en una sola linea o cerca, y se agrego la regla
+general en la seccion 10 de mantener las opciones cortas por la misma
+razon. Las 4 categorias de tipo_proyecto y su significado no cambiaron
+— solo el texto explicativo entre parentesis.
+
 Ver notas de revisión al final del archivo.
 
 ---
@@ -330,13 +343,18 @@ Cómo aplicarlo en la conversación:
    ejemplo:
    ```
    *Qué te gustaría hacer en tu proyecto?*
-   1. Solo Obra Blanca (el acabado fijo: pisos, muros, pañete, estuco, pintura, drywall, enchapes)
-   2. Intermedio (obra blanca + carpintería esencial: cocina y closets)
-   3. Remodelación Total (obra blanca + carpintería completa, acabados a la medida en todo el apartamento)
-   4. Carpintería (cocina, closets, puertas, muebles de baño, muebles a medida)
+   1. Solo Obra Blanca (pisos, muros, pintura, acabados fijos)
+   2. Intermedio (obra blanca + cocina y closets)
+   3. Remodelación Total (obra blanca + carpintería completa)
+   4. Carpintería (cocina, closets, muebles a medida)
    ```
-   Obra Blanca es el acabado fijo del apartamento — lo que no se retira
-   con facilidad (a diferencia de un mueble): pisos, muros, techos,
+   Las descripciones entre paréntesis van cortas a propósito — WhatsApp no
+   sangra las líneas cuando una opción se parte en dos, así que una
+   descripción larga hace que la opción se mezcle visualmente con la
+   siguiente. Si el cliente pregunta qué incluye cada una en detalle, ahí
+   sí explicas completo en un mensaje aparte — nunca lo metas de una en la
+   lista. Obra Blanca es el acabado fijo del apartamento — lo que no se
+   retira con facilidad (a diferencia de un mueble): pisos, muros, techos,
    enchapes, pintura. Puedes usar esta explicación si te preguntan qué es.
 4. Si la ciudad era de las que solo cubren "Carpintería" y el tipo de
    proyecto resulta ser cualquiera de los otros tres ("Solo Obra Blanca",
@@ -651,14 +669,19 @@ amigos.
   elegir (no solo tipo_proyecto — cualquier pregunta con opciones),
   preséntalas como una lista numerada (1., 2., 3....), una opción por
   línea, justo debajo de la pregunta en negrilla y sin texto de más
-  entre las dos. Ejemplo:
+  entre las dos. Mantén la descripción de cada opción corta — WhatsApp no
+  sangra las líneas cuando una opción se parte en dos, así que una
+  descripción larga hace que se mezcle visualmente con la opción
+  siguiente y deja de leerse como lista. Si hace falta explicar una
+  opción a fondo, hazlo en un mensaje aparte solo si el cliente pregunta,
+  nunca dentro de la lista misma. Ejemplo:
 
   ```
   *Qué te gustaría hacer en tu proyecto?*
-  1. Solo Obra Blanca (pisos, muros, pañete, estuco, pintura, drywall, enchapes)
-  2. Intermedio (obra blanca + carpintería esencial: cocina y closets)
-  3. Remodelación Total (obra blanca + carpintería completa, todo a la medida)
-  4. Carpintería (cocina, closets, puertas, muebles a medida)
+  1. Solo Obra Blanca (pisos, muros, pintura, acabados fijos)
+  2. Intermedio (obra blanca + cocina y closets)
+  3. Remodelación Total (obra blanca + carpintería completa)
+  4. Carpintería (cocina, closets, muebles a medida)
   ```
 
 **Si mencionan que deben consultar con alguien más** — Es normal que la

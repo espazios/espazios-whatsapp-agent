@@ -956,6 +956,28 @@ de agendamiento — son puramente de tono/estilo. Pendiente: el usuario
 debe probar esto en Kapso y confirmar que el tono se sienta mas
 humano/menos detectable como IA.
 
+**Bug real encontrado con captura de WhatsApp, mismo dia — lista de
+tipo_proyecto se veia mal.** El usuario mando una captura de la
+conversacion real (todavia con el prompt viejo en Kapso, sin los
+cambios de arriba pegados aun): la pregunta de tipo_proyecto se via
+como un bloque de texto en vez de una lista limpia. Causa raiz: cada
+opcion tiene una descripcion larga entre parentesis, y WhatsApp no
+sangra la linea cuando una opcion se parte en 2-3 lineas — las lineas
+de continuacion quedan al mismo margen que el inicio de la siguiente
+opcion, mezclando visualmente todo. Confirmado que **no era un
+problema de vineta (•) vs. numero (1.)** — el wrap pasa igual con
+cualquiera de los dos formatos, asi que cambiar a lista numerada
+(cambio de la ronda anterior) no lo iba a arreglar por si solo.
+Arreglo real: acortar la descripcion entre parentesis de cada una de
+las 4 opciones (secciones 6 y 10 de `docs/isa-v2-system-prompt.md`) y
+agregar una regla general de mantener las opciones cortas por esta
+misma razon — las 4 categorias y su significado de negocio no
+cambiaron, solo el texto explicativo. Pendiente: el usuario aun no ha
+pegado ningun cambio de esta sesion en el prompt real de Kapso (la
+captura confirma que sigue con "asesora virtual", vinetas y "¿" de
+apertura) — falta esa sincronizacion antes de poder probar todo esto
+junto.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
