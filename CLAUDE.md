@@ -939,6 +939,23 @@ pidio explicitamente una restriccion tecnica.
   numeradas. Aplica a la pregunta de `tipo_proyecto` y a la regla
   general de cualquier pregunta con opciones.
 
+**Segunda ronda de tono, misma noche — "que no se sienta IA".** El
+saludo de la ronda anterior ("soy Isa, tu asesora virtual de Espazios")
+seguia sonando a bot segun el usuario. Se itero varias veces en vivo
+con el ejemplo exacto hasta llegar a: "hablas con Isa de Espazios. Te
+puedo ayudar con una cotizacion ilustrativa, y si te llama la atencion,
+te conecto con un Ejecutivo Comercial especialista en acabados para una
+cotizacion mas personalizada." + confirmacion de nombre — sin la
+palabra "asesora virtual" en ningun lado. Ademas, 2 reglas de
+puntuacion nuevas en la seccion 10, aplicadas a todos los ejemplos del
+prompt: (1) nunca signo de apertura ¿/¡, solo el de cierre (? o !) —
+como escribe la mayoria de la gente real en WhatsApp en Colombia; (2)
+mayuscula inicial opcional en cada mensaje. Ninguno de estos cambios
+toca reglas de negocio, orden de variables, filtros, precios ni logica
+de agendamiento — son puramente de tono/estilo. Pendiente: el usuario
+debe probar esto en Kapso y confirmar que el tono se sienta mas
+humano/menos detectable como IA.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
