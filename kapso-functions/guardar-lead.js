@@ -1,4 +1,12 @@
-// Kapso Function — "guardar_lead"
+// Kapso Function — codigo fuente del tool "guardar_lead" de Isa v2.
+//
+// El nombre de la funcion en el dashboard de Kapso NO tiene que ser
+// "guardar_lead" (de hecho no puede — los nombres de funcion solo
+// aceptan guiones, no guion bajo; ver kapso-functions/README.md, que
+// usa "guardar-lead-isa-v2" para no chocar con una funcion existente de
+// la Isa vieja). El nombre que SI debe ser exactamente "guardar_lead" es
+// el del *tool* del agent node (paso 3 del README) — eso es lo que
+// llama `docs/isa-v2-system-prompt.md`.
 //
 // Tool que llama el agent node de Isa v2 para guardar (crear o
 // actualizar) el lead en la base de datos D1 del proyecto de Kapso.

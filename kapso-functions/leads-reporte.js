@@ -1,4 +1,9 @@
-// Kapso Function — "leads_reporte"
+// Kapso Function — codigo fuente del endpoint "leads_reporte" de Isa v2.
+//
+// Igual que guardar-lead.js: el nombre de la funcion en el dashboard de
+// Kapso puede ser cualquier cosa (ver kapso-functions/README.md, usa
+// "leads-reporte-isa-v2") — esta no es un tool del agent node, asi que
+// ni siquiera hace falta que el nombre coincida con nada del prompt.
 //
 // NO es un tool del agent node — es un endpoint de solo lectura para que
 // el equipo comercial vea los leads que guardo `guardar_lead.js` en la
