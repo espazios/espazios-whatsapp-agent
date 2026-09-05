@@ -836,6 +836,27 @@ error en ningun log accesible desde el MCP de Kapso ni desde el
 dashboard — solo se nota comparando el conteo de invocaciones contra el
 conteo de llamadas en el log de la conversacion.
 
+**Actualizacion 2026-09-05, misma tarde — el tool se renombro a
+`guardar_lead_db`.** El usuario sincronizo el prompt real de Kapso con
+este repo y aparece llamando **`guardar_lead_db`** (no `guardar_lead`)
+en las secciones 6.1 y 9 — el asistente de IA de Kapso debio renombrar
+el tool al reconectarlo como Function Tool nativo, despues de las 2
+invocaciones confirmadas arriba (esas fueron con el nombre viejo
+`guardar_lead`). El prompt tambien gano instrucciones mas robustas:
+llamada obligatoria (no solo "guarda el lead") en los 2 momentos, puede
+volver a llamarse si el cliente corrige/agrega notas de agendamiento, y
+nunca afirmar que se guardo si la herramienta da error. Queda una
+referencia vieja sin actualizar en la ultima frase de la seccion 9
+("guardados con `guardar_lead`") — inconsistencia menor, es solo texto
+descriptivo, no rompe nada. **Confirmado por el usuario, 2026-09-05:**
+el tool en la pestaña "Tools" del agent node si se llama exactamente
+`guardar_lead_db`, coincidiendo con el prompt ya sincronizado —
+`kapso-functions/README.md` (paso 3) tambien se actualizo con el nombre
+nuevo. Sigue pendiente, no urgente: una prueba real mas de una
+conversacion completa para reconfirmar que el guardado/upsert sigue
+funcionando bien bajo el nombre nuevo (las 2 invocaciones ya confirmadas
+arriba fueron con el nombre viejo `guardar_lead`).
+
 **Pendiente, no urgente:** decidir si `leads-reporte-isa-v2` (el
 endpoint HTML/JSON de solo lectura) sigue haciendo falta ahora que
 Kapso tiene una pestaña nativa de **Database** en el dashboard del

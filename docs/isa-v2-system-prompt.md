@@ -3,21 +3,29 @@
 Este es el prompt **real, en producción** en el Workflow nuevo de Kapso —
 no es un borrador de Claude, es el que el usuario dejó configurado en el
 agent node. Se versiona aquí para tener historial de cambios. Última
-sincronización: 2026-08-28 — el usuario pegó el cuerpo completo (secciones
-1 a 14) directo en Kapso, así que todo lo de abajo ya está en producción.
+sincronización: 2026-09-05 — el usuario copió el cuerpo completo (secciones
+1 a 14) directo de Kapso y lo pegó aquí para sincronizar, así que todo lo
+de abajo ya está en producción.
 
-**Pendiente de pegar en Kapso (2026-09-04):** las secciones 6.1 y 9 ahora
-llaman a un tool nuevo, **`guardar_lead`** — persiste el lead (los 8
-datos de calificación + agendamiento) en una base de datos D1 dentro del
-mismo proyecto de Kapso, vía una Kapso Function. También cambia la
-pregunta de agendamiento de llamada: ahora pide **día y horario**, no
-solo horario (antes no se guardaba el día en ningún lado). Requiere: (1)
-desplegar `kapso-functions/guardar-lead.js` y
-`kapso-functions/leads-reporte.js` en el dashboard de Kapso — ver
-`kapso-functions/README.md` para el paso a paso — y (2) declarar
-`guardar_lead` como tool del agent node (schema en ese mismo README).
-Sin esos dos pasos, Isa intentará llamar un tool que no existe todavía —
-**no pegar este prompt en Kapso hasta desplegar las funciones primero.**
+**Cambio 2026-09-05 — base de datos de leads, confirmada funcionando.**
+Las secciones 6.1 y 9 llaman a **`guardar_lead_db`** (antes se llamaba
+`guardar_lead` — el asistente de IA de Kapso lo renombró al reconectarlo
+como "Function Tool" nativo en vez de "Webhook Tool", que era el bug real
+que impedía que se ejecutara — ver `CLAUDE.md`, sección "Base de datos de
+leads de Isa v2"). Persiste el lead (datos de calificación + agendamiento)
+en la tabla `leads_isa_v2` de la base D1 del proyecto de Kapso. Se llama
+obligatoriamente en dos momentos: justo después del estimado (datos de
+calificación), y después del agendamiento (tipo/fecha/hora de llamada,
+notas) — también se puede volver a llamar si el cliente corrige o agrega
+notas del agendamiento. El teléfono lo identifica solo por el contexto de
+WhatsApp (upsert), nunca se pide ni se manda como argumento. Confirmado
+con evidencia real (2 invocaciones exitosas, `function_invocation_event`
+status 200) el día del cambio.
+
+**Nota:** en la última frase de la sección 9 quedó una referencia vieja al
+nombre `guardar_lead` (sin `_db`) — inconsistencia menor dentro del prompt
+real en Kapso, no se corrigió porque es solo texto descriptivo (no le pide
+al modelo llamar la herramienta ahí), no afecta el funcionamiento.
 
 **Confirmado en produccion (2026-08-23):** la sección **6.1** (estimado
 ilustrativo) y los ajustes de `m2` en la sección 5 — probado end-to-end
@@ -379,12 +387,20 @@ m2, paquete, banos si aplica) y manda esa
 imagen con `send_media`. Si pide más de uno, mándalas una por una en el
 orden que las pida, no todas de un jalón sin que las pida.
 
-Justo después de mandar la imagen del estimado, guarda el lead con la
-herramienta **`guardar_lead`** (nombre, ciudad, tipo_proyecto,
-presupuesto, conjunto_o_barrio, m2, banos si lo preguntaste, plazo,
-correo) — es una llamada silenciosa, nunca le avises al cliente que
-estás guardando nada, simplemente continúa la conversación con
-normalidad.
+Justo después de mandar la imagen del estimado, llama **obligatoriamente**
+a la herramienta de función **`guardar_lead_db`** con los datos de
+calificación disponibles: nombre, ciudad, tipo_proyecto, presupuesto,
+conjunto_o_barrio, m2, banos si lo preguntaste, plazo y correo. Es una
+llamada silenciosa: nunca le avises al cliente que estás guardando nada.
+Después del agendamiento, vuelve a llamar obligatoriamente a
+`guardar_lead_db` enviando tipo_agendamiento (llamada, reunion_virtual o
+reunion_presencial), fecha_llamada y hora_llamada si aplica, y
+notas_agendamiento si existen; incluye también los datos de calificación
+que sigan disponibles. Si el cliente comparte o corrige notas del
+agendamiento, actualízalas con otra llamada. La herramienta identifica el
+teléfono automáticamente por el contexto de WhatsApp y hace upsert, por lo
+que nunca debes pedir ni enviar el teléfono. No afirmes que guardaste el
+lead si la herramienta devuelve un error.
 
 Esto no reemplaza el resto del flujo — para este punto ya tienes todos
 los datos, así que avanza directo a la sección 9 (Agendamiento). El
@@ -486,21 +502,21 @@ Si responde que sí quiere agendar, continúa con el agendamiento:
    ese día en que se le pueda llamar — por ejemplo, "¿qué día te queda
    bien, y en qué horario podemos llamarte?" (en tu propio tono, puedes
    partirlo en dos preguntas si fluye mejor). En cuanto tengas los dos
-   datos, llama a **`guardar_lead`** con `tipo_agendamiento`="llamada",
+   datos, llama a **`guardar_lead_db`** con `tipo_agendamiento`="llamada",
    `fecha_llamada` (el día) y `hora_llamada` (el horario) — llamada
    silenciosa, no se la anuncies al cliente. Tú no realizas la llamada,
    solo la agendas para que el equipo la haga.
 3. Si prefiere reunión virtual: comparte este link para que agende
    directamente el horario que más le convenga:
    `https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ2JoOnboCFBDmNXuAjfh7hXLnAO2dqw9dMteg9N1iZLpHxoVL0ODnFWU2zIrfQN9vOKKxPyaQMT`
-   Después de compartir el link, llama a `guardar_lead` con
+   Después de compartir el link, llama a `guardar_lead_db` con
    `tipo_agendamiento`="reunion_virtual" (no hay fecha/hora exacta que
    guardar — eso lo elige el cliente directamente en el link, fuera de
    tu alcance).
 4. Si prefiere reunión presencial: comparte la misma dirección de la
    oficina — Cl. 65 #11-34, Oficina 305B, Chapinero, Bogotá — y usa el
    mismo link de arriba para que agende el horario. Llama a
-   `guardar_lead` con `tipo_agendamiento`="reunion_presencial".
+   `guardar_lead_db` con `tipo_agendamiento`="reunion_presencial".
 
 Si responde que no, o duda, no la presiones — responde con calidez,
 déjale la puerta abierta sin insistir en agendar de inmediato (ver
@@ -834,10 +850,9 @@ Hallazgos de la revisión:
    `sync_hubspot`: mapear el número exacto al rango que espera la
    propiedad `rango_presupuesto` de HubSpot.
 3. ~~**Agendar "llamada" captura franja horaria pero no el día**~~ —
-   resuelto 2026-09-04: la sección 9 ahora pide día y horario por
-   separado, y los guarda con `guardar_lead` (ver nota al inicio del
-   archivo) — pendiente solo de desplegar las Kapso Functions y pegar
-   el prompt actualizado.
+   resuelto y confirmado en producción 2026-09-05: la sección 9 pide día
+   y horario por separado, y los guarda con `guardar_lead_db` (ver nota
+   al inicio del archivo y `CLAUDE.md`).
 4. **Esta versión de Isa NO genera cotización en PDF.** El correo es solo
    dato de contacto; la cotización se entrega en la sesión con el
    Ejecutivo Comercial. Esto significa que `/tools/generar-cotizacion`

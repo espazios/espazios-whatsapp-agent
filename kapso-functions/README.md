@@ -20,7 +20,9 @@ sufijo `-isa-v2`, para no chocar con nombres existentes:
 nombres también chocan con algo, usa cualquier otro sufijo — el nombre
 de la función en Kapso es independiente del nombre del *tool* que Isa
 llama (ese se define aparte en el paso 3, y sí debe ser exactamente
-`guardar_lead` porque es el nombre que usa `docs/isa-v2-system-prompt.md`).
+`guardar_lead_db` porque es el nombre que usa
+`docs/isa-v2-system-prompt.md` — el tool se renombró de `guardar_lead` a
+`guardar_lead_db` el 2026-09-05, confirmado en el dashboard real).
 
 ## 1. Desplegar `guardar-lead.js`
 
@@ -65,14 +67,14 @@ sí usa `POST` y por eso ahí funciona). Usa en cambio
    que quieras ver el informe — tiene un botón "Ver leads" que sí manda
    el `POST` correcto.
 
-## 3. Conectar `guardar_lead` como tool del agent node de Isa v2
+## 3. Conectar `guardar_lead_db` como tool del agent node de Isa v2
 
 En el Workflow "Isa v2 (IA generativa)" → el nodo del agente → agregar
 tool nuevo (igual que ya están `generar_estimado_ilustrativo` y
 `ver_detalle_paquete`, pero apuntando a esta función de Kapso en vez de
 a un webhook externo):
 
-- **Nombre del tool**: `guardar_lead` (con guion bajo — este es el
+- **Nombre del tool**: `guardar_lead_db` (con guion bajo — este es el
   nombre que el system prompt usa para llamarlo, no tiene que coincidir
   con el nombre de la función de Kapso del paso 1).
 - **Descripción** (para que el modelo sepa cuándo llamarlo): "Guarda o
