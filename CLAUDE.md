@@ -773,6 +773,76 @@ sigue siendo el link estatico de Appointment Schedule (no la integracion
 real de Calendar API que es la Prioridad 2 del roadmap). El reporte solo
 puede decir "eligio reunion virtual/presencial", no cuando.
 
+### RESUELTO — 2026-09-05, confirmado end-to-end en produccion
+
+El deploy manual lo hizo el usuario, pero el problema real (y el arreglo
+final) lo resolvio el **propio asistente de IA de Kapso** (dentro de su
+dashboard, con acceso interno que esta sesion no tiene) — no esta
+sesion de Claude Code. Cronologia:
+
+1. Deploy manual de `guardar-lead.js` como funcion `guardar-lead-isa-v2`
+   y `leads-reporte.js` como `leads-reporte-isa-v2` (nombres con sufijo
+   `-isa-v2` porque el proyecto ya tenia una funcion `guardar-lead`
+   propia de la Isa vieja — no tocar esa).
+2. **Bug de nombre de tabla:** la tabla `leads` (nombre generico usado en
+   el codigo original) ya existia en la base D1 compartida del proyecto
+   con otro esquema — el `CREATE TABLE IF NOT EXISTS` nunca corria de
+   verdad. Arreglado renombrando a `leads_isa_v2` en ambos archivos
+   (mismo commit que agrego el sufijo a los nombres de function).
+3. **Bug real, mas de fondo:** el tool `guardar_lead` se habia conectado
+   en el agent node como **"Webhook Tool"** generico (URL manual +
+   header `X-API-Key`, apuntando al invoke endpoint publico de la
+   funcion) — igual que `generar_estimado_ilustrativo`/
+   `ver_detalle_paquete` apuntan a Railway. Con eso, la funcion NUNCA
+   se invocaba: la pestaña "Invocations" del dashboard se quedaba en
+   "No invocations yet" pase lo que pase, aunque el log de la
+   conversacion mostrara `agent_tool_called`/`agent_tool_response`
+   normal — el agente "creia" haber llamado el tool y recibido
+   respuesta, pero la funcion real nunca se ejecutaba. Confirmado por
+   triplicado: `search_logs` (MCP de Kapso, `function_invocation_event`
+   filtrado por `function_id`) en cero, la pestaña Invocations del
+   dashboard en cero, y la tabla `leads_isa_v2` en Database con 0 filas
+   — los tres a la vez, para la misma conversacion de prueba real donde
+   el tool si aparecia llamado 4 veces en el log del flujo.
+4. **Diagnostico y fix delegados al asistente de IA de Kapso** (no a
+   esta sesion — no tenemos acceso interno a por que el "Webhook Tool"
+   fallaba silenciosamente). Se le paso la evidencia exacta de arriba
+   (llamadas registradas en el flujo vs. cero invocaciones reales) y se
+   le pidio explicitamente que analizara y ajustara el, no solo que
+   explicara. Resultado: reconecto `guardar_lead` como **"Function
+   Tool" nativo** (selecciona la funcion Kapso directamente, sin URL/
+   headers manuales) en vez de "Webhook Tool" — ese era el problema.
+5. **Confirmado end-to-end con evidencia real** (`search_logs`,
+   `function_invocation_event`, function_id de `guardar-lead-isa-v2`,
+   2026-09-05 ~7:28-7:31am hora Colombia, sandbox de WhatsApp):
+   - Primera invocacion: guarda los 8 datos de calificacion
+     (`nombre`, `ciudad`, `tipo_proyecto`, `presupuesto`,
+     `conjunto_o_barrio`, `m2`, `plazo`, `correo`) →
+     `{"ok": true, "telefono": "573024058302", "campos_guardados": [...]}`
+   - Segunda invocacion (mismo telefono): actualiza el mismo registro
+     agregando `tipo_agendamiento: "llamada"`, `fecha_llamada:
+     "2026-09-07"`, `hora_llamada: "9:00 am"` — el upsert por telefono
+     funciono, no duplico fila. **Esto es exactamente el dato que el
+     usuario pidio al inicio de todo esto: dia y hora de la llamada,
+     capturados y guardados.**
+
+**Leccion para la proxima vez que se conecte una Kapso Function como
+tool de un agent node en este proyecto:** usar siempre **"Function
+Tool"** nativo (selecciona la funcion de una lista) — nunca "Webhook
+Tool" apuntando al invoke endpoint publico de una funcion propia del
+mismo proyecto. El segundo tipo falla en silencio (el agente cree que
+funciono, pero la funcion real nunca corre) y no deja ningun rastro de
+error en ningun log accesible desde el MCP de Kapso ni desde el
+dashboard — solo se nota comparando el conteo de invocaciones contra el
+conteo de llamadas en el log de la conversacion.
+
+**Pendiente, no urgente:** decidir si `leads-reporte-isa-v2` (el
+endpoint HTML/JSON de solo lectura) sigue haciendo falta ahora que
+Kapso tiene una pestaña nativa de **Database** en el dashboard del
+proyecto donde se puede ver `leads_isa_v2` directamente sin necesitar
+ninguna funcion nuestra — probablemente se pueda dar de baja
+`leads-reporte-isa-v2` y quedarse solo con la vista nativa.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
@@ -793,12 +863,17 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
       construya el envio de seguimientos programados (`kapso-client.ts`).
       **Pendiente: el usuario tambien debe guardar `KAPSO_API_KEY` en
       Railway** si algun dia `tools-server.ts` la necesita.
-- [ ] Desplegar `kapso-functions/guardar-lead.js` y
+- [x] ~~Desplegar `kapso-functions/guardar-lead.js` y
       `kapso-functions/leads-reporte.js` en el dashboard de Kapso, y
-      declarar `guardar_lead` como tool del agent node de Isa v2 — ver
-      `kapso-functions/README.md` para el paso a paso completo. Sin esto,
-      no pegar el `docs/isa-v2-system-prompt.md` actualizado (llama un
-      tool que no existiria todavia).
+      declarar `guardar_lead` como tool del agent node de Isa v2~~ —
+      hecho y confirmado end-to-end 2026-09-05 (ver "RESUELTO" en la
+      seccion "Base de datos de leads de Isa v2" arriba). El bug real
+      era conectar `guardar_lead` como "Webhook Tool" en vez de
+      "Function Tool" nativo — lo diagnostico y corrigio el propio
+      asistente de IA de Kapso, confirmado con 2 invocaciones reales
+      exitosas (`function_invocation_event`, status 200) guardando y
+      actualizando el mismo lead por telefono, incluida la fecha/hora
+      de la llamada agendada.
 - [x] ~~Desplegar `src/tools-server.ts` en una URL publica real~~ — hecho,
       corre en Railway (ver arriba).
 - [x] ~~Conectar `generar_estimado_ilustrativo` y `ver_detalle_paquete`
