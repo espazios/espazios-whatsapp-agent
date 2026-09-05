@@ -874,6 +874,71 @@ proyecto donde se puede ver `leads_isa_v2` directamente sin necesitar
 ninguna funcion nuestra — probablemente se pueda dar de baja
 `leads-reporte-isa-v2` y quedarse solo con la vista nativa.
 
+## Bug de doble mensaje por turno en Isa v2 — RESUELTO, 2026-09-05
+
+Encontrado revisando conversaciones de prueba reales (Yonathan Murillo,
+via `search_logs`/`whatsapp_messages` del MCP de Kapso): en casi todos
+los turnos, Isa le mandaba al cliente **dos mensajes de WhatsApp** para
+una sola respuesta — a veces la misma pregunta repetida palabra por
+palabra, a veces la pregunta real seguida de un mensaje aparte de puro
+relleno ("Quedo atento a tu respuesta.", "Quedo atento a esa
+información."). Se diagnostico la causa raiz cruzando los mensajes
+reales con los `flow_event` internos del agent node (`agent_tool_called`,
+`agent_message_sent`): el agente tiene disponible una herramienta de
+comunicacion generica del agent node, `send_notification_to_user`, y
+nada le impedia llamarla mas de una vez (o llamarla y ademas dejar que
+su respuesta de turno normal tambien saliera) para una sola respuesta
+al cliente.
+
+Se le paso la evidencia exacta al asistente de IA de Kapso en 3 rondas
+sucesivas (cada vez con ejemplos reales de la conversacion de prueba
+mas reciente), pidiendole que **analizara y ajustara**, no solo que
+explicara:
+
+1. Primera ronda: identifico el problema (dos canales de salida a la
+   vez) pero el primer ajuste solo le cambio el contenido al segundo
+   mensaje (paso de repetir la pregunta a mandar una frase de relleno
+   tipo "Quedo atento a...") — no cerro el segundo canal.
+2. Segunda ronda: agrego una herramienta de control de flujo nueva,
+   `enter_waiting`, que el agente llama explicitamente para cerrar su
+   turno — funciono para las primeras 1-2 preguntas de la conversacion,
+   pero de la tercera pregunta en adelante el agente seguia llamando
+   `send_notification_to_user` dos veces (con dos redacciones distintas
+   de la misma respuesta) antes de llegar a `enter_waiting` — o sea,
+   `enter_waiting` resolvia cuando terminar el turno, pero no habia un
+   limite duro de cuantas veces se podia enviar un mensaje dentro de
+   ese turno.
+3. Tercera ronda: se le pidio explicitamente un limite duro (no una
+   instruccion de texto) de un solo envio por turno. **Confirmado
+   funcionando por el usuario con una conversacion de prueba real** —
+   cada turno manda ahora un solo mensaje, de principio a fin.
+
+Como red de seguridad adicional (no reemplaza el arreglo de
+plataforma), se agrego una regla nueva en la seccion 14 de
+`docs/isa-v2-system-prompt.md`: nunca reformular ni reenviar la misma
+respuesta dentro de un turno, ni agregar un mensaje de cierre/relleno
+despues de la respuesta real.
+
+**Leccion para la proxima vez que aparezca un problema de mensajes
+duplicados o de comportamiento del agent node en este proyecto:**
+pedirle a Kapso un limite duro de plataforma en vez de conformarse con
+un ajuste de contenido o una instruccion de texto — un LLM puede
+"decidir" que dos mensajes son mejor que uno en un turno especifico
+aunque el prompt diga lo contrario; los primeros dos intentos de Kapso
+lo confirmaron (cambiaron el sintoma, no la causa) hasta que se les
+pidio explicitamente una restriccion tecnica.
+
+**Ajustes de tono relacionados, mismo dia** (`docs/isa-v2-system-prompt.md`):
+- **Mensaje de bienvenida (seccion 2):** ahora incluye un gancho corto
+  de valor en el mismo primer mensaje ("te ayudo a armar tu cotizacion
+  y a agendarte con un Ejecutivo Comercial experto"), pedido explicito
+  del usuario — antes solo saludaba y confirmaba el nombre, sin decir
+  que hace Isa.
+- **Formato de opciones (secciones 6 y 10):** paso de vinetas (•) a
+  lista numerada (1., 2., 3...) — el usuario prefiere las listas
+  numeradas. Aplica a la pregunta de `tipo_proyecto` y a la regla
+  general de cualquier pregunta con opciones.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
