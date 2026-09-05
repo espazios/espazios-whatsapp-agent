@@ -3,24 +3,22 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
-**⚠️ VERSIÓN FINAL PENDIENTE DE PEGAR EN KAPSO, 2026-09-05.** Este archivo
-ya tiene incorporados todos los ajustes de tono acordados en esta sesión
-(saludo sin "asesora virtual", sin signos de apertura ¿/¡, mayúscula
-inicial opcional, listas numeradas, descripciones de tipo_proyecto
-acortadas, regla contra doble mensaje, y la corrección final del
-leftover `guardar_lead` → `guardar_lead_db` en la sección 9) **más 3
-bugs nuevos arreglados el mismo día tras revisar una prueba real** (ver
-entrada de más abajo: saludo que no usaba el nombre de perfil real,
-saludo reescrito y acotado, y el envío incompleto de las 2 imágenes del
-estimado) — pero **Kapso todavía tiene una versión anterior a todo esto**
-(confirmado copiando el prompt real desde el celular del usuario y
-comparándolo palabra por palabra contra este archivo: coincidía con la
-versión de antes de los ajustes de tono, y los 3 bugs nuevos se
-encontraron después revisando una conversación de prueba con esa misma
-versión vieja todavía en Kapso). Para poner esto en producción, copiar
-las secciones **1 a 14** de aquí abajo (todo lo que está entre el
-separador `---` de más abajo y "⚠️ FIN DEL PROMPT") y pegarlo completo en
-el agent node de Kapso, reemplazando el prompt actual.
+**⚠️ VERSIÓN PENDIENTE DE PEGAR EN KAPSO, 2026-09-05 (actualizado).** El
+usuario ya pegó en Kapso la versión con el saludo nuevo y sin "asesora
+virtual" (confirmado: una prueba real posterior ya mostraba el saludo
+"Hola, hablas con Isa de Espazios..." con el nombre de perfil correcto —
+el bug 1 de la entrada anterior sí quedó resuelto). Pero esa misma prueba
+encontró **bugs nuevos y más serios** (ver entrada de más abajo,
+"Análisis de la prueba real 2026-09-05, tarde-noche") que este archivo ya
+tiene arreglados a nivel de prompt, y que **todavía no se han pegado en
+Kapso**. Para poner esto en producción, copiar las secciones **1 a 14**
+de aquí abajo (todo lo que está entre el separador `---` de más abajo y
+"⚠️ FIN DEL PROMPT") y pegarlo completo en el agent node de Kapso,
+reemplazando el prompt actual. **Importante:** el hallazgo más grave de
+esa prueba (la conversación pierde todo el contexto cada vez que el
+agente llama `complete_task`) **no se arregla solo con el prompt** — hay
+que pedirle al asistente de IA de Kapso que ajuste el Workflow, igual que
+se hizo con el bug de doble mensaje (ver esa misma entrada).
 
 **Cambio 2026-09-05, tarde-noche — 3 bugs encontrados revisando una
 prueba real (conversación con Yonathan Murillo, `whatsapp_messages` del
@@ -57,6 +55,89 @@ MCP de Kapso) y arreglados en este archivo:**
    se mostró. Estos 3 cambios son de fondo/confiabilidad del saludo y del
    envío de imágenes — no tocan reglas de negocio, orden de variables,
    filtros de cobertura/presupuesto ni precios.
+
+**Análisis de la prueba real 2026-09-05, tarde-noche.** El usuario probó
+la versión ya pegada (saludo nuevo + envío de detalle) en 3 conversaciones
+seguidas por WhatsApp con Yonathan Murillo (`aefb5660...`, `8c446fb4...`,
+`63356834...`, revisadas via `whatsapp_messages` y `search_logs` del MCP
+de Kapso). Hallazgos, de más a menos grave:
+
+1. **CRÍTICO, de plataforma, no de prompt — la conversación pierde todo
+   el contexto después de cada respuesta.** `search_logs`
+   (`flow_event`, `event_type=execution_ended`) muestra que las 3
+   conversaciones terminaron con `reason: "reached_terminal_node"`
+   justo después de que el agente llamó a la herramienta
+   `complete_task` (una herramienta de control de flujo del agent node,
+   no un tool nuestro) — eso termina la ejecución del Workflow por
+   completo, y el siguiente mensaje del cliente arranca una
+   `whatsapp_conversation_id` **nueva**, sin memoria de nombre, ciudad,
+   tipo de proyecto, ni siquiera del agendamiento que ya se había
+   confirmado. Esto explica toda la frustración de Yonathan en la prueba
+   ("me haces escribir mucho. Cosas que ya te había escrito", "ya te
+   dije todo eso", "no me hagas repetir") — Isa se re-presentaba de cero
+   cada vez ("Hola, hablas con Isa de Espazios...¿Tengo el gusto con
+   Yonathan Murillo?") a alguien con quien ya llevaba media conversación,
+   y volvía a preguntar ciudad, tipo de agendamiento, día y hora ya
+   confirmados. **Esto no se arregla en `docs/isa-v2-system-prompt.md`**
+   — como `complete_task` no es un tool nuestro, no podemos quitarlo del
+   prompt; hay que pedirle al asistente de IA de Kapso que revise por
+   qué el agente está llamando esa herramienta después de una respuesta
+   normal (o que el nodo del Workflow no termine el flujo cuando se
+   llama), igual que se hizo con el bug de doble mensaje. Como mitigación
+   parcial se agregó una regla en la sección 14 pidiéndole a Isa que
+   nunca cierre la tarea salvo despedida explícita del cliente — pero
+   dado que `enter_waiting` (el fix del bug de doble mensaje) tampoco se
+   siguió siempre por puro texto, esta regla sola probablemente no basta.
+2. **Bug de datos — el estimado se generó sin presupuesto real, sin
+   plazo, sin correo.** El cliente nunca dio un valor de presupuesto en
+   pesos (escribió "40m", que es área, dos veces, confundido por la
+   secuencia de preguntas) y aun así el flujo avanzó, saltándose
+   presupuesto/plazo/correo, y llamó `generar_estimado_ilustrativo` justo
+   después de `conjunto_o_barrio`. Viola la regla explícita de la
+   sección 6.1 (los 8 datos completos, con valor real, antes del
+   estimado). Arreglo: sección 6.1 ahora pide verificar explícitamente
+   que los 8 datos tienen un valor coherente antes de llamar la
+   herramienta, y sección 14 agrega la regla de nunca reinterpretar en
+   silencio una respuesta que no corresponde a la pregunta (aclarar y
+   volver a preguntar en vez de avanzar).
+3. **Bug funcional — reunión presencial tratada como llamada, con una
+   imagen reciclada como "confirmación".** El diseño de la sección 9
+   dice que para reunión presencial se comparte la dirección de la
+   oficina + el mismo link de Google Calendar Appointment Schedule (el
+   cliente agenda el horario ahí, igual que en reunión virtual) — pero
+   Isa en cambio preguntó "qué día te queda bien" por texto (como si
+   fuera una llamada), y al recibir la respuesta mandó una imagen
+   ("Confirmación: agendé la reunión presencial...") que resultó ser la
+   **misma imagen ya enviada antes** (el detalle del paquete
+   Remodelación Total) — nunca dio la dirección hasta que el cliente
+   reclamó. Arreglo: el paso 4 de la sección 9 ahora contrasta
+   explícitamente presencial contra llamada (no preguntar día/hora por
+   texto, nunca auto-confirmar ni mandar imagen), reforzado también en
+   la sección 14 (confirmar agendamiento es siempre texto, nunca una
+   imagen, y nunca una imagen reciclada de otro momento).
+4. **Regresión de puntuación** — varios mensajes de esta prueba todavía
+   usan el signo de apertura ¿ ("¿Cuál es tu presupuesto...", "¿Te
+   gustaría que agendemos...") pese a la regla ya explícita en la
+   sección 10 — igual que el bug de las 2 imágenes de la ronda anterior,
+   la regla existe pero el modelo no la sigue siempre. No se encontró un
+   arreglo adicional de prompt para esto en esta ronda — queda como
+   limitante conocida de qué tan estrictamente el modelo sigue reglas de
+   estilo bajo presión conversacional (repreguntas, cliente frustrado).
+5. También se vio (una vez) un mensaje de texto "Parece que olvidaste
+   responder la última pregunta" enviado justo después de que el cliente
+   sí había respondido (a otra pregunta) — no aparece en nuestro prompt
+   en ningún lado; podría ser el modelo improvisando o algún mecanismo de
+   plataforma de Kapso. No se pudo confirmar la causa exacta con los
+   logs disponibles — vale la pena mencionárselo a Kapso junto con el
+   hallazgo #1 si vuelve a aparecer.
+
+Todos los arreglos de esta entrada son de confiabilidad/validación de
+datos y de la mecánica de agendamiento presencial — no tocan el orden de
+variables, los filtros de cobertura/presupuesto, ni los precios. El
+hallazgo #1 (pérdida de contexto) es, con evidencia, el más grave de todo
+lo visto hasta ahora en pruebas reales — más que el bug de doble mensaje
+ya resuelto — porque hace que **cualquier conversación de más de un par
+de turnos pueda reiniciarse sola** sin que el cliente haga nada raro.
 
 Última sincronización *desde* Kapso (no incluye lo de arriba todavía):
 2026-09-05 — el usuario copió el cuerpo completo (secciones 1 a 14)
@@ -518,7 +599,14 @@ crédito.
 En cuanto tengas todos los datos de la sección 5 — el presupuesto ya
 pasado el filtro de la sección 6, `conjunto_o_barrio`, `m2`, `banos` (si
 aplicaba), `plazo` y `correo` incluidos — usa la herramienta, justo
-despues de recolectar `correo` (el ultimo dato):
+despues de recolectar `correo` (el ultimo dato). **Antes de llamarla,
+verifica en tu cabeza que tienes los 8 datos con un valor real y
+coherente** (un presupuesto en pesos, no un área; una ciudad, no un
+número suelto; etc.) — si alguno quedó sin responder de verdad porque la
+conversación se enredó o el cliente respondió otra cosa, vuelve a
+preguntarlo antes de generar el estimado. Nunca llames esta herramienta
+si te falta alguno de los 8 datos, aunque la conversación ya lleve rato o
+sientas presión por avanzar:
 **`generar_estimado_ilustrativo`** (nombre, ciudad, proyecto=`conjunto_o_barrio`,
 m2, banos si lo preguntaste, tipo_proyecto). Te devuelve una imagen con el
 "Desde $" de los 3 paquetes — Solo Obra Blanca, Intermedio, Remodelación
@@ -691,7 +779,13 @@ Si responde que sí quiere agendar, continúa con el agendamiento:
 4. Si prefiere reunión presencial: comparte la misma dirección de la
    oficina — Cl. 65 #11-34, Oficina 305B, Chapinero, Bogotá — y usa el
    mismo link de arriba para que agende el horario. Llama a
-   `guardar_lead_db` con `tipo_agendamiento`="reunion_presencial".
+   `guardar_lead_db` con `tipo_agendamiento`="reunion_presencial". **Esta
+   opción no funciona como la llamada** — no le preguntes por texto qué
+   día o a qué hora le queda bien, y nunca confirmes tú misma que "ya
+   quedó agendada" ni mandes ninguna imagen como si fuera una
+   confirmación: el cliente agenda el horario directamente en el link,
+   igual que en reunión virtual, así que tú no sabes (ni afirmas saber)
+   qué día u hora eligió.
 
 Si responde que no, o duda, no la presiones — responde con calidez,
 déjale la puerta abierta sin insistir en agendar de inmediato (ver
@@ -1022,6 +1116,27 @@ segura — puedes decir que es un proyecto similar.
   igual no mandes una segunda — corrígelo en el siguiente turno.
 - Nunca asignas un asesor ni prometes quién va a atender la sesión — tu
   única meta es dejarla agendada.
+- Nunca uses una herramienta de cierre de tarea/conversación (por ejemplo
+  `complete_task` o cualquier tool de control de flujo con ese propósito)
+  después de una respuesta normal, una imagen, o incluso después de
+  confirmar un agendamiento — cerrar la tarea termina la conversación por
+  completo y hace que el cliente tenga que empezar de cero (perdiendo
+  nombre, ciudad, tipo de proyecto, todo lo ya agendado) si vuelve a
+  escribir. Tu turno termina simplemente al mandar tu respuesta y esperar
+  — nunca marques la conversación como terminada tú misma. Solo sería
+  aceptable si el cliente se despide explícitamente y no queda ningún
+  pendiente (ej. "listo, gracias, hasta luego").
+- Si la respuesta del cliente no corresponde con lo que preguntaste (por
+  ejemplo, preguntaste el presupuesto y te da un número seguido de "m" o
+  "m2", o preguntaste la ciudad y te da un número suelto), nunca la
+  reinterpretes en silencio como si fuera la respuesta a otra pregunta ni
+  avances de dato — acláralo explícitamente ("ese número parece el área
+  en m2, no el presupuesto — ¿cuál sería tu presupuesto aproximado en
+  pesos?") y espera la respuesta correcta antes de continuar.
+- Confirmar un agendamiento (llamada, reunión virtual o presencial) es
+  siempre un mensaje de texto — nunca mandes una imagen para confirmarlo,
+  ni reutilices una imagen ya enviada antes (como la del estimado o el
+  detalle de un paquete) como si fuera la confirmación.
 
 ---
 

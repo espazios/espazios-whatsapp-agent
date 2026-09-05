@@ -1038,10 +1038,92 @@ en Kapso).**
 Los 3 cambios son de confiabilidad de ejecucion (que Isa efectivamente
 haga lo que el prompt ya pedia, mas explicito sobre el saludo) — no
 tocan reglas de negocio, orden de variables, filtros de
-cobertura/presupuesto ni precios. Pendiente: el usuario debe pegar la
-version consolidada (con estos 3 ajustes incluidos) en el agent node de
-Kapso — sigue sin haberse pegado ningun cambio de tono/confiabilidad de
-esta sesion todavia.
+cobertura/presupuesto ni precios.
+
+**Actualizacion, mismo dia — el usuario si pego esa version en Kapso, y
+la siguiente prueba real confirmo el saludo arreglado pero encontro bugs
+nuevos y mas graves.** Se revisaron 3 conversaciones de prueba seguidas
+con Yonathan Murillo (`aefb5660...`, `8c446fb4...`, `63356834...`, via
+`whatsapp_messages` y `search_logs` del MCP de Kapso). El saludo ya usaba
+bien el nombre de perfil real ("Hola, hablas con Isa de Espazios...
+Tengo el gusto con Yonathan Murillo?") — bug 1 de la ronda anterior
+resuelto. Pero aparecieron 3 bugs nuevos, ordenados de mas a menos
+grave:
+
+1. **CRITICO, de plataforma, no de prompt — la conversacion pierde todo
+   el contexto despues de cada respuesta.** `search_logs`
+   (`flow_event`, `execution_ended`) muestra que las 3 conversaciones
+   terminaron con `reason: "reached_terminal_node"` justo despues de que
+   el agente llamo la herramienta **`complete_task`** (un tool de
+   control de flujo del agent node, no uno nuestro) — eso termina la
+   ejecucion del Workflow por completo, y el siguiente mensaje del
+   cliente arranca una `whatsapp_conversation_id` **nueva**, sin memoria
+   de nada (nombre, ciudad, tipo de proyecto, ni siquiera el
+   agendamiento ya confirmado). Esto explica toda la frustracion real de
+   Yonathan en la prueba ("me haces escribir mucho. Cosas que ya te
+   habia escrito", "ya te dije todo eso", "no me hagas repetir") — Isa
+   se re-presentaba de cero cada vez a alguien con quien ya llevaba
+   media conversacion. **No se puede arreglar solo en el prompt** —
+   `complete_task` no es un tool nuestro, no se puede quitar desde
+   `docs/isa-v2-system-prompt.md`. Hay que pedirle al asistente de IA de
+   Kapso que revise por que el agente llama esa herramienta despues de
+   una respuesta normal (o que el Workflow no termine el flujo cuando se
+   llama) — mismo mecanismo que resolvio el bug de doble mensaje. Se
+   agrego una regla en la seccion 14 del prompt pidiendole a Isa que
+   nunca cierre la tarea salvo despedida explicita del cliente, como
+   mitigacion parcial mientras se resuelve del lado de Kapso — pero por
+   la experiencia con `enter_waiting` (que tampoco se siguio siempre solo
+   con texto), es probable que no baste sin el ajuste de plataforma.
+2. **Bug de datos — el estimado se genero sin presupuesto real, sin
+   plazo, sin correo.** El cliente nunca dio un presupuesto en pesos
+   (escribio "40m", que es area, dos veces, confundido por la secuencia
+   de preguntas) y aun asi el flujo avanzo, saltandose
+   presupuesto/plazo/correo, y llamo `generar_estimado_ilustrativo` justo
+   despues de `conjunto_o_barrio` — viola la regla de la seccion 6.1 (los
+   8 datos completos y con valor real antes del estimado). Arreglo:
+   seccion 6.1 ahora pide verificar explicitamente que los 8 datos
+   tienen un valor coherente antes de llamar la herramienta, y seccion
+   14 agrega la regla de nunca reinterpretar en silencio una respuesta
+   que no corresponde a la pregunta hecha (aclarar y volver a preguntar
+   en vez de avanzar el dato).
+3. **Bug funcional — reunion presencial tratada como llamada, con una
+   imagen reciclada como "confirmacion".** El diseno de la seccion 9
+   dice que para reunion presencial se comparte la direccion de la
+   oficina + el mismo link de Google Calendar Appointment Schedule (el
+   cliente agenda el horario ahi, igual que en reunion virtual) — pero
+   Isa en la prueba pregunto "que dia te queda bien" por texto (como si
+   fuera llamada), y al responder el cliente mando una imagen
+   ("Confirmacion: agende la reunion presencial...") que resulto ser la
+   **misma imagen ya enviada antes** (el detalle del paquete
+   Remodelacion Total) — nunca dio la direccion hasta que el cliente
+   reclamo. Arreglo: el paso 4 de la seccion 9 ahora contrasta
+   explicitamente presencial contra llamada (no preguntar dia/hora por
+   texto, nunca auto-confirmar ni mandar imagen), reforzado tambien en
+   la seccion 14 (confirmar agendamiento es siempre texto, nunca una
+   imagen reciclada de otro momento).
+
+Tambien se vio (una vez) un mensaje de texto "Parece que olvidaste
+responder la ultima pregunta" enviado justo despues de que el cliente si
+habia respondido (a otra pregunta) — no aparece en nuestro prompt en
+ningun lado; no se pudo confirmar la causa exacta con los logs
+disponibles, vale la pena mencionarselo a Kapso junto con el hallazgo #1
+si vuelve a aparecer. Y persiste la regresion de puntuacion (el signo de
+apertura ¿ sigue apareciendo en varios mensajes de esta prueba pese a la
+regla ya explicita en la seccion 10) — igual que el bug de las 2
+imagenes de la ronda anterior, la regla existe pero el modelo no la sigue
+siempre; no se encontro un arreglo adicional de prompt para esto.
+
+Todos los arreglos de esta entrada son de confiabilidad/validacion de
+datos y de la mecanica de agendamiento presencial — no tocan el orden de
+variables, los filtros de cobertura/presupuesto, ni los precios. El
+hallazgo #1 (perdida de contexto) es, con evidencia, el mas grave de todo
+lo visto hasta ahora en pruebas reales — mas que el bug de doble mensaje
+ya resuelto — porque hace que **cualquier conversacion de mas de un par
+de turnos pueda reiniciarse sola** sin que el cliente haga nada raro.
+Pendiente: (a) el usuario debe pegar esta version del prompt en Kapso, y
+(b) escalar el hallazgo de `complete_task` al asistente de IA de Kapso
+con la evidencia de arriba, igual que se hizo con el bug de doble
+mensaje.
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
