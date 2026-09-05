@@ -996,6 +996,53 @@ sean consistentes. Pendiente: el usuario debe copiar las secciones
 1-14 del archivo y reemplazar el prompt completo en el agent node de
 Kapso.
 
+**3 bugs nuevos encontrados y arreglados, misma sesion, revisando una
+prueba real posterior (conversacion con Yonathan Murillo via el MCP de
+Kapso, `whatsapp_messages`) — la version que fallo en esa prueba era la
+version vieja todavia vigente en Kapso, anterior a toda la ronda de
+tono de arriba, no la version final consolidada (que seguia sin pegarse
+en Kapso).**
+
+1. **Saludo no uso el nombre de perfil real.** Isa fue directo al
+   fallback "con quien tengo el gusto?" aunque el usuario confirmo que
+   el nombre de perfil de WhatsApp si estaba disponible. Arreglo en
+   `docs/isa-v2-system-prompt.md` seccion 2: instruccion explicita de
+   llamar `get_whatsapp_context` **siempre** antes del primer mensaje —
+   nunca asumir que no hay nombre sin haberlo consultado.
+2. **Saludo reescrito**, a pedido del usuario, con un borrador nuevo
+   mas corto ("Hola, hablas con Isa de Espazios — te acompañamos con
+   acabados y remodelacion de tu vivienda. Te tomo unos datos, te
+   comparto una cotizacion ilustrativa, resolvemos dudas y agendamos
+   una sesion para personalizarla.") manteniendo la confirmacion de
+   nombre en el mismo mensaje. Excepcion nueva a la regla de "mayuscula
+   inicial opcional" (seccion 10): el usuario pidio que este primer
+   mensaje puntual si arranque en mayuscula, a diferencia del resto de
+   la conversacion. Se agrego tambien el manejo de "el nombre que
+   confirme no es el correcto" (el cliente corrige — se acepta sin
+   insistir y se guarda el nombre correcto).
+3. **Bug de entrega incompleta de las 2 imagenes del estimado.** En la
+   prueba real, con `tipo_proyecto` ya en "Remodelacion Total" (el
+   cliente ya lo habia elegido), Isa solo mando la tarjeta general y
+   luego pregunto "cual de los 3 paquetes" nombrando los 3 (incluido el
+   ya elegido) — el cliente protesto ("ya te dije que remodelacion
+   total"). Isa afirmo despues haber mandado el detalle sin mandarlo
+   realmente, y solo llego (sin la imagen general junto, como un
+   mensaje separado) tras un segundo reclamo del cliente ("no me has
+   enviado nada"). Arreglo en la seccion 6.1: secuencia obligatoria de
+   2 pasos en el mismo turno (imagen general → imagen de detalle del
+   paquete ya elegido, sin pregunta intermedia ni depender de que el
+   cliente la pida), y la pregunta de seguimiento ahora nombra
+   explicitamente solo los paquetes que faltan por ver, nunca el que
+   ya se mostro.
+
+Los 3 cambios son de confiabilidad de ejecucion (que Isa efectivamente
+haga lo que el prompt ya pedia, mas explicito sobre el saludo) — no
+tocan reglas de negocio, orden de variables, filtros de
+cobertura/presupuesto ni precios. Pendiente: el usuario debe pegar la
+version consolidada (con estos 3 ajustes incluidos) en el agent node de
+Kapso — sigue sin haberse pegado ningun cambio de tono/confiabilidad de
+esta sesion todavia.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
