@@ -978,6 +978,24 @@ captura confirma que sigue con "asesora virtual", vinetas y "¿" de
 apertura) — falta esa sincronizacion antes de poder probar todo esto
 junto.
 
+**Verificacion de fidelidad de copia + version final consolidada,
+mismo dia.** El usuario copio el prompt real desde Kapso (desde el
+celular) y lo pego para verificar. Se comparo palabra por palabra
+contra la ultima version sincronizada en el repo (antes de los ajustes
+de tono de esta sesion): coincide 100%, sin faltantes — las unicas
+diferencias eran de formato de markdown (negrillas, numeracion,
+subtitulos) que el copiado desde celular no conserva, ya documentado
+como inofensivo. Confirma tambien, de nuevo, que Kapso sigue con la
+version anterior a todos los ajustes de tono de esta sesion. Con esto
+confirmado, `docs/isa-v2-system-prompt.md` se marco como la
+**version final consolidada lista para pegar** — se corrigio ademas
+el ultimo leftover pendiente (`guardar_lead` sin `_db` en el cierre de
+la seccion 9, que se habia dejado a proposito por fidelidad en rondas
+anteriores) para que las 4 menciones de la herramienta en el prompt
+sean consistentes. Pendiente: el usuario debe copiar las secciones
+1-14 del archivo y reemplazar el prompt completo en el agent node de
+Kapso.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +

@@ -1,11 +1,27 @@
 # Isa v2 — system prompt (Kapso agent node)
 
-Este es el prompt **real, en producción** en el Workflow nuevo de Kapso —
-no es un borrador de Claude, es el que el usuario dejó configurado en el
-agent node. Se versiona aquí para tener historial de cambios. Última
-sincronización: 2026-09-05 — el usuario copió el cuerpo completo (secciones
-1 a 14) directo de Kapso y lo pegó aquí para sincronizar, así que todo lo
-de abajo ya está en producción.
+Este archivo versiona el system prompt del Workflow "Isa v2 (IA
+generativa)" en Kapso — historial completo de cambios más abajo.
+
+**⚠️ VERSIÓN FINAL PENDIENTE DE PEGAR EN KAPSO, 2026-09-05.** Este archivo
+ya tiene incorporados todos los ajustes de tono acordados en esta sesión
+(saludo sin "asesora virtual", sin signos de apertura ¿/¡, mayúscula
+inicial opcional, listas numeradas, descripciones de tipo_proyecto
+acortadas, regla contra doble mensaje, y la corrección final del
+leftover `guardar_lead` → `guardar_lead_db` en la sección 9) — pero
+**Kapso todavía tiene la versión anterior** (confirmado copiando el
+prompt real desde el celular del usuario y comparándolo palabra por
+palabra contra este archivo: coincide con la versión de antes de estos
+ajustes). Para poner esto en producción, copiar las secciones **1 a 14**
+de aquí abajo (todo lo que está entre el separador `---` de más abajo y
+"⚠️ FIN DEL PROMPT") y pegarlo completo en el agent node de Kapso,
+reemplazando el prompt actual.
+
+Última sincronización *desde* Kapso (no incluye lo de arriba todavía):
+2026-09-05 — el usuario copió el cuerpo completo (secciones 1 a 14)
+directo de Kapso y lo pegó aquí para verificar que la copia estuviera
+completa (confirmado: sin faltantes, solo diferencias de formato de
+markdown que el copiado desde celular no conserva).
 
 **Cambio 2026-09-05 — base de datos de leads, confirmada funcionando.**
 Las secciones 6.1 y 9 llaman a **`guardar_lead_db`** (antes se llamaba
@@ -145,6 +161,19 @@ descripcion entre parentesis de cada opcion se acorto (secciones 6 y
 general en la seccion 10 de mantener las opciones cortas por la misma
 razon. Las 4 categorias de tipo_proyecto y su significado no cambiaron
 — solo el texto explicativo entre parentesis.
+
+**Cambio 2026-09-05, cierre de la sesión — versión final consolidada.**
+Se confirmó (comparando contra una copia real del prompt desde el
+celular del usuario) que ninguno de los ajustes de esta sesión estaba
+todavía en Kapso. Aprovechando esta versión final, se corrigió también
+el último leftover pendiente: la sección 9 decía "guardados con
+`guardar_lead`" (sin `_db`) en su párrafo de cierre — se dejó así por
+varias rondas a propósito, por fidelidad con lo que había literalmente
+en Kapso, pero ya no aplica: esta es ahora la versión de referencia,
+así que se corrigió a `guardar_lead_db` para que quede consistente en
+las 4 menciones del prompt. Pendiente: el usuario debe copiar las
+secciones 1-14 de este archivo y reemplazar el prompt completo en
+Kapso.
 
 Ver notas de revisión al final del archivo.
 
@@ -610,7 +639,7 @@ no como cierre automático de cualquier mensaje.
 
 Recuerda: tú no asignas un Ejecutivo Comercial ni decides quién atiende —
 tu única meta es dejar la sesión agendada (el día y horario de la
-llamada capturados y guardados con `guardar_lead`, o el link de reunión
+llamada capturados y guardados con `guardar_lead_db`, o el link de reunión
 compartido). Una vez logrado esto, cierra la conversación con calidez,
 dejando claro que alguien de Espazios se pondrá en contacto. No ofrezcas acciones ni canales de entrega que no
 estén definidos aquí (por ejemplo, reenviar el link por correo) — si la
