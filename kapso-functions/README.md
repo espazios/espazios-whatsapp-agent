@@ -9,11 +9,26 @@ Esta sesión de Claude Code no tiene salida de red hacia `api.kapso.ai`
 (bloqueada por el sandbox), así que el deploy es manual, siguiendo estos
 pasos en el dashboard de Kapso (`app.kapso.ai`).
 
-## 1. Desplegar `guardar_lead.js`
+**Nombres de las funciones en Kapso:** el slug de una función solo acepta
+minúsculas, números y guiones (`-`) — nada de guion bajo (`_`). Además,
+el proyecto **ya tiene una función existente usada por la Isa vieja**
+que guarda leads (la que aparece en sus logs como
+`resultado_guardar_lead`) — **no la toques ni la borres**, sigue en
+producción real. Por eso las funciones nuevas de esta guía usan el
+sufijo `-isa-v2`, para no chocar con nombres existentes:
+`guardar-lead-isa-v2` y `leads-reporte-isa-v2`. Si en tu proyecto esos
+nombres también chocan con algo, usa cualquier otro sufijo — el nombre
+de la función en Kapso es independiente del nombre del *tool* que Isa
+llama (ese se define aparte en el paso 3, y sí debe ser exactamente
+`guardar_lead` porque es el nombre que usa `docs/isa-v2-system-prompt.md`).
+
+## 1. Desplegar `guardar-lead.js`
 
 1. Kapso dashboard → **Functions** → **New function**.
-2. Nombre: `guardar_lead`. Runtime: **Cloudflare Workers**.
-3. Pega el contenido completo de `guardar-lead.js` en el editor de código.
+2. Nombre: `guardar-lead-isa-v2`. Runtime: **Cloudflare Workers**.
+3. Pega el contenido completo de `guardar-lead.js` en el editor de código
+   (el contenido del archivo no cambia, solo el nombre de la función en
+   el dashboard).
 4. **NO** actives "Public endpoint" — solo la llama el agent node de Isa
    internamente, no necesita URL pública.
 5. **Deploy**. Espera a que el estado pase de `draft` a `deployed`
@@ -23,7 +38,7 @@ pasos en el dashboard de Kapso (`app.kapso.ai`).
 
 ## 2. Desplegar `leads-reporte.js`
 
-1. **New function** de nuevo. Nombre: `leads_reporte`. Runtime:
+1. **New function** de nuevo. Nombre: `leads-reporte-isa-v2`. Runtime:
    **Cloudflare Workers**.
 2. Pega el contenido completo de `leads-reporte.js`.
 3. Esta vez **sí activa "Public endpoint"** — así se puede abrir
@@ -43,15 +58,17 @@ tool nuevo (igual que ya están `generar_estimado_ilustrativo` y
 `ver_detalle_paquete`, pero apuntando a esta función de Kapso en vez de
 a un webhook externo):
 
-- **Nombre del tool**: `guardar_lead`
+- **Nombre del tool**: `guardar_lead` (con guion bajo — este es el
+  nombre que el system prompt usa para llamarlo, no tiene que coincidir
+  con el nombre de la función de Kapso del paso 1).
 - **Descripción** (para que el modelo sepa cuándo llamarlo): "Guarda o
   actualiza el lead en la base de datos. Llámalo silenciosamente (sin
   avisarle al cliente) en dos momentos: justo después de generar el
   estimado ilustrativo, con los datos de calificación ya recolectados; y
   justo después de confirmar el agendamiento, con los datos de esa
   logística."
-- **Function**: selecciona la función `guardar_lead` que acabas de
-  desplegar.
+- **Function**: selecciona la función `guardar-lead-isa-v2` que acabas
+  de desplegar.
 - **Parámetros / input schema**:
 
 ```json
@@ -91,8 +108,8 @@ distintos de estos campos (ver `docs/isa-v2-system-prompt.md`, secciones
 ## Verificar que funciona
 
 Después de una conversación de prueba con Isa v2 que llegue hasta el
-estimado (o hasta agendar), abre la Invoke URL de `leads_reporte` — debe
-aparecer una fila con los datos de esa conversación de prueba.
+estimado (o hasta agendar), abre la Invoke URL de `leads-reporte-isa-v2`
+— debe aparecer una fila con los datos de esa conversación de prueba.
 
 ## Notas
 
