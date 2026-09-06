@@ -1537,6 +1537,55 @@ el proceso de verificacion por fidelidad de copia (copiar el prompt
 real de Kapso y compararlo palabra por palabra) para sincronizar este
 archivo con lo que quedo en produccion.
 
+**Respuesta de Kapso, mismo dia — 404 explicado + instruccion aplicada
+al prompt real, lock version 91.**
+
+1. **404 de `process-followups`:** Kapso confirmo que la funcion existe
+   (`id: 476eba19-0c54-4d0c-9b3d-2ddb65306aa6`, `status: deployed`), que
+   la URL que nos dieron es la correcta segun su propia documentacion
+   (`/platform/v1/functions/{function_id}/invoke`), y forzo un
+   redeploy. Su hipotesis: los primeros requests cayeron durante la
+   ventana de publicacion asincrona antes de que el runtime quedara
+   disponible — consistente con que la funcion no registraba ninguna
+   invocacion (ni exitosa ni fallida) de los intentos que si vio
+   Railway, o sea esos requests nunca llegaron al worker. **Pendiente:
+   volver a revisar los logs de Railway** para confirmar si el 404 ya
+   desaparecio tras el redeploy; si persiste, guardar el `request_id`
+   de Railway para escalarlo como inconsistencia de su runtime.
+2. **Instruccion `register-followup` ya aplicada directo en el
+   `system_prompt` del agent node** (Workflow `Isa v2 (IA generativa)`,
+   id `9144e40d-cd55-4d3b-a2f2-4a019db39fa6`, `lock_version: 91`) — no
+   la escribimos nosotros, como se decidio arriba. Cubre las mismas 12
+   preguntas/momentos que pedimos (calificacion completa + dudas-o-
+   agendar + tipo de agendamiento + dia/horario de llamada +
+   confirmacion de agendamiento por link) y explicitamente EXCLUYE
+   invitar a ver detalle de paquetes, FAQ, y contenido informativo.
+   Secuencia obligatoria que quedo en el prompt:
+   `send_notification_to_user → register-followup → enter_waiting`.
+   El payload de creacion es `{"pending_action": "<texto libre>"}`.
+3. **Cancelacion NO es automatica** — es una llamada explicita mas que
+   Isa debe hacer con `{"action": "cancel"}` ante *cualquier* respuesta
+   del cliente (incluida una respuesta a un seguimiento ya enviado); la
+   funcion cancela las cadenas en estado `pending`, `processing` y
+   `sent` de esa conversacion, y responde sin error si no hay cadena
+   activa. **Ojo:** el mensaje de Kapso no deja del todo claro si esta
+   instruccion de cancelar tambien quedo escrita en el `system_prompt`
+   (lock version 91) junto con la de crear, o si solo describe el
+   diseno de la funcion — hay que confirmarlo al leer el prompt real
+   (paso siguiente) y, si falta, pedirselo a Kapso en una vuelta mas.
+4. **Plantilla de WhatsApp:** sigue en `submitted`, sin cambios,
+   pendiente de Meta.
+
+**Pendiente inmediato:**
+- Revisar logs de Railway para confirmar que el 404 se resolvio.
+- El usuario debe copiar el prompt completo del agent node (secciones
+  1-14) y pegarlo aca para el proceso de verificacion por fidelidad de
+  copia de siempre — con eso se confirma si la regla de cancelacion
+  quedo incluida y se sincroniza `docs/isa-v2-system-prompt.md` con lo
+  que Kapso realmente escribio (en vez de con el borrador que
+  redactamos nosotros).
+- Confirmar a Kapso "scheduler activo" una vez el 404 este resuelto.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
@@ -1546,13 +1595,16 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
 - [ ] `sync_hubspot`: falta construir. Cuando se haga, mapear `presupuesto`
       (numero exacto, ej. "$15") al rango que espera la propiedad
       `rango_presupuesto` de HubSpot (ej. "Entre $15 y $30 millones").
-- [ ] Seguimiento automatico por inactividad (ver seccion arriba): pegar
-      `FOLLOWUPS_PROCESS_TOKEN` (ya generado, en `.env` local) en Railway
-      y en la funcion `process-followups` de Kapso; confirmar a Kapso
-      "scheduler activo"; pedirle a Kapso que agregue la instruccion de
-      `register-followup` directo en el prompt real (no nosotros — ver
-      "Cambio de plan" arriba) y luego sincronizar este repo por
-      fidelidad de copia; esperar aprobacion de Meta de la plantilla
+- [ ] Seguimiento automatico por inactividad (ver seccion arriba):
+      `FOLLOWUPS_PROCESS_TOKEN` ya pegado en Railway y Kapso; Kapso ya
+      aplico la instruccion de `register-followup` directo en el
+      prompt real (lock version 91) y forzo un redeploy de
+      `process-followups` para el 404 — falta (a) revisar logs de
+      Railway para confirmar que el 404 desaparecio, (b) pegar el
+      prompt real aca para verificar por fidelidad de copia si la
+      regla de cancelacion (`{"action":"cancel"}`) quedo incluida, (c)
+      confirmar a Kapso "scheduler activo", (d) esperar aprobacion de
+      Meta de la plantilla
       `isa_seguimiento_agendamiento`; ronda de pruebas reales de WhatsApp.
 - [x] ~~Confirmar si la franja horaria de "llamada" en el prompt deberia
       capturar tambien el dia, no solo el horario~~ — resuelto 2026-09-04,
