@@ -1176,6 +1176,64 @@ confirme que el contexto ya no se pierde entre mensajes (el arreglo de
 `complete_task` en si ya esta confirmado del lado de Kapso, ver arriba
 — falta la confirmacion end-to-end).
 
+## Seguimiento automatico por inactividad — EN INVESTIGACION, 2026-09-06
+
+El usuario reporto que hay clientes reales que dejan a Isa esperando una
+respuesta por mas de 10 minutos, sin que nadie retome el contacto.
+Verificado en vivo revisando `whatsapp_conversations` (estado "active"):
+en una sola muestra de 10 conversaciones recientes, **6 estaban esperando
+respuesta ahora mismo**, entre 69 y 195 minutos (mas de 3 horas), cada
+una en un punto distinto del flujo (presupuesto, correo, confirmar
+nombre, tipo de agendamiento, una oferta de video sin retomar) — leads
+reales, algunos con presupuesto y tipo de proyecto ya capturados,
+enfriandose solos. No es un caso raro — parece ser el patron normal.
+
+Esto es mas amplio que el item 4 del roadmap original ("seguimiento
+automatico ~10 min despues de compartir el link/franja de
+agendamiento") — el usuario pidio que cubra **cualquier pregunta sin
+responder**, no solo el momento de agendar. La razon tecnica del
+roadmap original para requerir `kapso-client.ts` + `KAPSO_API_KEY`/
+`KAPSO_PHONE_NUMBER_ID` era que "el agent node no puede hacer esto solo
+porque solo reacciona cuando el cliente escribe, no puede 'despertar'
+solo despues de un tiempo" — pero eso se escribio antes de que se
+descubriera `enter_waiting` (el mecanismo de control de flujo que
+Kapso agrego para el bug de doble mensaje, y que tambien resolvio el
+bug de `complete_task`/perdida de contexto, ver arriba). Como
+`enter_waiting` ya deja una ejecucion pausada "esperando" en vez de
+terminada, vale la pena preguntarle a Kapso directamente si ese estado
+de espera soporta un timeout nativo de inactividad antes de construir
+nuestro propio mecanismo.
+
+**Se le mando esta pregunta al asistente de IA de Kapso, con la
+evidencia de arriba** (las 6 conversaciones activas y sus minutos de
+espera exactos), pidiendo:
+1. Si el agent node/Workflow tiene un mecanismo nativo de timeout que
+   despierte una ejecucion en `waiting` despues de N minutos sin
+   mensaje entrante, y si aplica a cualquier punto de la conversacion
+   (no solo tras un link de agendamiento).
+2. Como configurarlo si existe (nodo de tipo timer/delay, propiedad del
+   agent node, Workflow settings) y si el timeout es parametrizable.
+3. Si no existe nada nativo, cual es la forma soportada de detectar
+   ejecuciones inactivas — para no reinventar algo que Kapso ya
+   resuelve, antes de activar `kapso-client.ts`.
+4. La redaccion del mensaje de seguimiento en si ya esta resuelta en el
+   prompt (seccion 10, "si retomas el contacto despues de un tiempo sin
+   respuesta") — falta solo el disparador.
+
+**Hallazgo aparte, sin resolver:** el mismo `whatsapp_config_id`
+(`8d9286a3-4e43-415e-8b85-6b19cab418f6`) tiene conversaciones con el
+formato viejo de listas interactivas (botones de WhatsApp — Zuluaga,
+Villa Pinn, Yesid Barreto) mezcladas con conversaciones en texto libre
+con negrilla tipo Isa v2 (Yonathan Murillo, John Moreno) — no esta
+claro si ese numero ya corre ambos Workflows en paralelo o que esta
+pasando ahi. Se incluyo como nota aparte en el mensaje a Kapso; no se
+investigo mas a fondo por no ser el foco de esta sesion.
+
+**Pendiente:** respuesta de Kapso. Segun lo que digan, el siguiente
+paso es o bien configurar el timeout nativo, o activar
+`kapso-client.ts` con las credenciales ya guardadas en `.env` local
+(`KAPSO_API_KEY`; falta `KAPSO_PHONE_NUMBER_ID`).
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
