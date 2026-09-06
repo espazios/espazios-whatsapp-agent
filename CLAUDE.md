@@ -1513,6 +1513,11 @@ sometida a Meta, mismo dia.** Kapso completo:
   distinto (borrador, otro ambiente). **Pendiente: devolverle esto a
   Kapso** — no es algo que se pueda arreglar del lado de Railway/repo,
   necesitan confirmar el ID/URL real de la funcion desplegada.
+- **Mandado a Kapso en un solo mensaje, mismo dia:** el hallazgo del 404
+  de arriba, JUNTO con la peticion de agregar `register-followup`
+  directo en el prompt real (ver "Cambio de plan" abajo) y la pregunta
+  sobre si la cancelacion de cadena es automatica — se combinaron en un
+  solo mensaje en vez de mandarlos por separado.
 
 **Cambio de plan, mismo dia — la instruccion de `register-followup` la
 agrega Kapso directo en el prompt real, no nosotros.** En vez de que
