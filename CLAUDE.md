@@ -1295,6 +1295,73 @@ amplio de arriba ("cualquier pregunta sin responder") por uno acotado:
 
 **Pendiente:** respuesta de Kapso con esta especificacion completa.
 
+**Respuesta de Kapso, mismo dia — plan de arquitectura hibrida
+confirmado como viable, aprobado por el usuario para construir
+completo.** Kapso confirmo que el timing exacto de horas habiles SI se
+puede lograr, pero requiere una arquitectura hibrida (no solo el
+Workflow): el Workflow conserva contexto/estado, y un **scheduler
+externo** controla el reloj. Sin ese scheduler, la unica alternativa es
+una version degradada con `wait_for_response` (10min / 4h / 8h de
+**reloj**, no de horas habiles) — el usuario no acepto ese atajo,
+confirmo seguir con el plan completo.
+
+Arquitectura propuesta por Kapso:
+1. **Workflow**: `enter_waiting` habilitado, `complete_task` fuera;
+   variables de estado deterministico
+   (`followup_attempt`, `followup_state`, `pending_action`,
+   `last_question_at`, `followup_chain_id`) controladas por el
+   Workflow, no por criterio del agente — el agente solo redacta texto
+   (pregunta, seguimientos, cierre).
+2. **Tabla D1 nueva** `conversation_followups` (conversation_id,
+   phone_number, execution_id, chain_id, pending_action, attempt,
+   status [pending/cancelled/sent/closed], next_due_at,
+   business_timezone, last_customer_message_at, timestamps) —
+   `conversation_id + chain_id` unico para evitar duplicados.
+3. **Funcion de scheduling** (Kapso Function): calcula la proxima fecha
+   en `America/Bogota`, cuenta solo lunes-viernes 7am-7pm, programa los
+   3 intentos, idempotente por `chain_id`.
+4. **Scheduler externo** — **decision del usuario: Cloudflare Workers
+   Cron/Queues**, mismo stack que ya usa `guardar-lead-isa-v2` (D1), en
+   vez de agregar un proveedor nuevo (n8n u otro) sin necesidad clara.
+   Revisa D1 cada minuto, busca cadenas `pending` vencidas, valida que
+   el cliente no haya respondido y que el `chain_id` siga vigente, y
+   reanuda la ejecucion via
+   `POST /platform/v1/workflow_executions/{execution_id}/resume` —
+   maneja `409` (solo una reanudacion pendiente por ejecucion a la
+   vez).
+5. **Respuesta del cliente en cualquier punto** cancela la cadena
+   (`status: cancelled`) — la ejecucion en `waiting` se reanuda normal,
+   sin enviar seguimientos pendientes.
+6. **Ventana de 24h de WhatsApp**: si el ultimo mensaje del cliente
+   tiene mas de 24h, hace falta una plantilla pre-aprobada por Meta en
+   vez de texto libre — si no hay plantilla adecuada, el seguimiento
+   queda bloqueado y visible para revision manual, nunca se manda texto
+   libre fuera de la ventana. **Decision del usuario: iniciar el
+   proceso de aprobacion de la plantilla en Meta YA, en paralelo a la
+   construccion del resto** — la revision de Meta puede tardar dias y
+   no debe quedar como el ultimo paso bloqueando el lanzamiento.
+
+Orden de construccion de Kapso (7 pasos): confirmar scheduler (ya
+decidido: Cloudflare) → tabla D1 + funcion → cambios al Workflow →
+worker/endpoint que reanuda cadenas vencidas → aprobar plantilla de
+WhatsApp → pruebas en staging (respuesta antes/despues de cada
+seguimiento, los 3 timeouts, cruce 19:00→7:00, fin de semana, ventana
+de 24h vencida, respuesta dias despues del cierre) → produccion con
+limite de seguridad y logs por cadena.
+
+**Confirmado con el usuario (via `AskUserQuestion`) y comunicado a
+Kapso:** (1) scheduler = Cloudflare Workers Cron/Queues; (2) arrancar
+la aprobacion de la plantilla de Meta desde ya, no al final; (3)
+proceder con el plan completo, sin la version degradada de
+`wait_for_response`.
+
+**Pendiente:** que Kapso proponga un borrador de texto para la
+plantilla de WhatsApp (para revisar antes de someterla a Meta), que
+confirme si las pruebas de staging las corre solo o necesita
+participacion nuestra simulando mensajes reales, y que reporte avance
+por etapas del plan de 7 pasos (no todo de un solo golpe, dado que
+toca infraestructura nueva).
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
