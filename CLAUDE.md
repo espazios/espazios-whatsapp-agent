@@ -1497,9 +1497,25 @@ sometida a Meta, mismo dia.** Kapso completo:
   usuario debe hacerlo, esta sesion no tiene acceso al dashboard de
   Railway) y en la funcion `process-followups` de Kapso. Una vez ambos
   lados tengan el mismo secret y el deploy de Railway este corriendo,
-  confirmar a Kapso con "scheduler activo" y pedirles el schema exacto
-  de `register-followup` para terminar de redactar la seccion 14 con los
-  campos reales.
+  confirmar a Kapso con "scheduler activo".
+
+**Cambio de plan, mismo dia — la instruccion de `register-followup` la
+agrega Kapso directo en el prompt real, no nosotros.** En vez de que
+esta sesion le adivine el schema de parametros a `register-followup` y
+el usuario tenga que volver a pegar las 14 secciones en Kapso, se le
+pidio a Kapso que agregue esa instruccion **directamente en el prompt
+real del agent node** — mismo patron que ya usaron para la regla de
+`enter_waiting`/`complete_task` (ver "RESUELTO a nivel de plataforma"
+mas arriba, tambien fue un cambio que Kapso aplico directo en la
+plataforma, no una instruccion nuestra de texto). Kapso ya conoce el
+schema real de la herramienta porque la construyeron, asi que no hay
+riesgo de que Isa la llame con campos inventados. La regla que se
+escribio en la seccion 14 de `docs/isa-v2-system-prompt.md` queda
+marcada como **borrador de referencia, no autoritativa** — no se pega
+en Kapso. Cuando Kapso confirme el cambio aplicado, hace falta repetir
+el proceso de verificacion por fidelidad de copia (copiar el prompt
+real de Kapso y compararlo palabra por palabra) para sincronizar este
+archivo con lo que quedo en produccion.
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
@@ -1513,9 +1529,10 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
 - [ ] Seguimiento automatico por inactividad (ver seccion arriba): pegar
       `FOLLOWUPS_PROCESS_TOKEN` (ya generado, en `.env` local) en Railway
       y en la funcion `process-followups` de Kapso; confirmar a Kapso
-      "scheduler activo"; pedirles el schema exacto de `register-followup`
-      para terminar la seccion 14 del prompt con los campos reales;
-      esperar aprobacion de Meta de la plantilla
+      "scheduler activo"; pedirle a Kapso que agregue la instruccion de
+      `register-followup` directo en el prompt real (no nosotros — ver
+      "Cambio de plan" arriba) y luego sincronizar este repo por
+      fidelidad de copia; esperar aprobacion de Meta de la plantilla
       `isa_seguimiento_agendamiento`; ronda de pruebas reales de WhatsApp.
 - [x] ~~Confirmar si la franja horaria de "llamada" en el prompt deberia
       capturar tambien el dia, no solo el horario~~ — resuelto 2026-09-04,

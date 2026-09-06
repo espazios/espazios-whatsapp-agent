@@ -3,19 +3,23 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
-**⚠️ PENDIENTE DE PEGAR, 2026-09-06 — regla nueva de `register-followup`
-en la sección 14.** Se agregó la instrucción de llamar la herramienta
-`register-followup` después de cualquier pregunta/acción pendiente de
-calificación (secciones 5-6.1) o agendamiento (sección 9), como parte
-del mecanismo de seguimiento automático por inactividad que está
-construyendo Kapso (ver `CLAUDE.md`, "Seguimiento automatico por
-inactividad"). **No pegar esta versión en Kapso todavía** — falta
-confirmar con Kapso el nombre/parámetros exactos de la herramienta tal
-como quedó registrada en el agent node (esta redacción es intencional-
-mente genérica, describe el "cuándo" y el "para qué", no los campos
-exactos) y falta que el scheduler de Railway esté confirmado activo del
-lado de Kapso. El resto del archivo (secciones 1-13, y 14 salvo esta
-regla) sigue siendo la versión ya pegada y confirmada abajo.
+**⚠️ CAMBIO DE PLAN, 2026-09-06 — la regla de `register-followup` en la
+sección 14 de este archivo es solo un BORRADOR de referencia, no la
+version autoritativa.** En vez de que nosotros le adivinemos el schema
+de parametros a `register-followup` y tu tengas que volver a pegar las
+14 secciones en Kapso, se le pidio a Kapso que agregue esa instruccion
+**directamente en el prompt real** del agent node — mismo patron que
+usaron para la regla de `enter_waiting`/`complete_task` (ver el
+hallazgo #1 de la entrada 2026-09-05 mas abajo), que tambien la
+escribieron ellos directo en la plataforma. Kapso ya conoce el schema
+real de la herramienta (la construyeron), asi que no hay riesgo de que
+Isa la llame con campos inventados. **No pegues la regla de este
+archivo en Kapso** — cuando Kapso confirme el cambio, alguien debe
+copiar el prompt real de vuelta a este archivo (mismo proceso de
+verificacion por fidelidad de copia que se ha usado en toda esta
+sesion) para que quede sincronizado. El resto del archivo (secciones
+1-13, y 14 salvo esta regla) sigue siendo la version ya pegada y
+confirmada abajo.
 
 **✅ VERSIÓN PEGADA EN KAPSO, 2026-09-06 — confirmada por fidelidad de
 copia.** El usuario copió las secciones 1-14 completas desde Kapso y las
