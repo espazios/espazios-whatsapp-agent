@@ -1499,17 +1499,20 @@ sometida a Meta, mismo dia.** Kapso completo:
 - **Verificado en logs de Railway, mismo dia (captura de pantalla del
   usuario):** el scheduler si arranco — aparece la linea "Scheduler de
   seguimientos activo (process-followups cada 1 min)" justo despues de
-  "Server listening". **Pero la primera llamada real ya fallo**: la
-  siguiente linea es "process-followups respondio con error" con
-  `status: 4...` (se corto en la captura, no se pudo leer el codigo
-  completo ni el `body`). Segun el contrato que dio Kapso, un 4xx solo
-  puede ser `401` (secret no coincide entre Railway y la funcion) o
-  `405` (metodo incorrecto — no deberia pasar, el scheduler manda
-  POST). **Pendiente:** conseguir el codigo de status y el `body`
-  completos del log (el usuario debe expandir/hacer scroll a esa linea
-  en Railway) para diagnosticar — sospecha principal: el secret pegado
-  en la funcion de Kapso no es exactamente el mismo string que el de
-  Railway (espacio de mas, salto de linea, o truncado al copiar).
+  "Server listening", y esta llamando cada minuto sin caerse (confirmado
+  con 2 intentos seguidos, 18:17:03 y 18:18:04).
+- **Pero la funcion no existe en esa URL — `404 Function not found`,
+  no es problema de secret.** Cuerpo completo del error:
+  `{"error":"Function not found"}`, status `404`, en ambos intentos.
+  No es un problema de `FOLLOWUPS_PROCESS_TOKEN` (eso daria `401`) — el
+  endpoint mismo
+  `https://api.kapso.ai/platform/v1/functions/476eba19-0c54-4d0c-9b3d-2ddb65306aa6/invoke`
+  no resuelve a ninguna funcion real. Posibles causas: el ID de funcion
+  que dio Kapso esta mal, `process-followups` no quedo realmente
+  publicada/deployada bajo ese ID, o el deploy esta en un estado
+  distinto (borrador, otro ambiente). **Pendiente: devolverle esto a
+  Kapso** — no es algo que se pueda arreglar del lado de Railway/repo,
+  necesitan confirmar el ID/URL real de la funcion desplegada.
 
 **Cambio de plan, mismo dia — la instruccion de `register-followup` la
 agrega Kapso directo en el prompt real, no nosotros.** En vez de que
