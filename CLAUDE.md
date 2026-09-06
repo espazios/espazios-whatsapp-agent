@@ -1418,6 +1418,89 @@ Meta ya.
    entrega del mensaje, cancelacion de cadena al responder, retencion
    de contexto tras el cierre.
 
+**Avance de Kapso, paso 4 de 7 — funciones desplegadas + plantilla
+sometida a Meta, mismo dia.** Kapso completo:
+
+- **`register-followup`** — Kapso Function nueva, ya agregada como tool
+  del agent node ("la herramienta ya está agregada al agente"). Registra
+  una cadena de seguimiento nueva (cancela la anterior de esa
+  conversacion si habia una), agenda el primer intento a los 10 minutos.
+- **`process-followups`** — la funcion "scheduler tick": autentica por
+  header compartido, busca filas vencidas en `conversation_followups` de
+  forma idempotente, valida que el cliente no haya respondido, reanuda
+  la ejecucion via el endpoint de resume de la plataforma, avanza el
+  intento o cierra la cadena tras el tercero, calculando la siguiente
+  fecha dentro de horas habiles.
+- **Tabla D1 `conversation_followups`**: confirmada existente y con el
+  esquema descrito en el paso 2 (conversation_id, phone_number,
+  execution_id, chain_id, pending_action, attempt, status, next_due_at,
+  business_timezone, last_customer_message_at, timestamps).
+- **Contrato HTTP exacto de `process-followups`** (invocable
+  publicamente):
+  ```
+  POST https://api.kapso.ai/platform/v1/functions/476eba19-0c54-4d0c-9b3d-2ddb65306aa6/invoke
+  x-api-key: <FOLLOWUPS_PROCESS_TOKEN>
+  content-type: application/json
+
+  {"limit": 50, "source": "railway_scheduler", "scheduler_run_id": "<ISO timestamp>"}
+  ```
+  Respuesta de exito: `{"ok": true, "now": ..., "scanned": N, "processed": [...], "skipped": [...]}`.
+  Errores: `401` (secret invalido), `405` (metodo incorrecto), `500
+  missing_kapso_api_key` (falta configurar `KAPSO_API_KEY` en la
+  funcion). **Header es `x-api-key`, no `authorization`** — aclarado
+  explicitamente por Kapso.
+- **Secrets nuevos requeridos**: `FOLLOWUPS_PROCESS_TOKEN` (el mismo
+  valor debe quedar configurado en Kapso, en la funcion
+  `process-followups`, Y en Railway, como env var de `tools-server.ts`)
+  + `KAPSO_API_KEY` (solo en la funcion de Kapso, ya la tienen). Kapso
+  pidio generarlo sin compartirlo con su chat — se genero localmente
+  (`openssl rand -hex 32`) y quedo solo en `.env` local (no committeado)
+  y pendiente de pegar en Railway y en la funcion de Kapso.
+- **Plantilla de WhatsApp sometida a Meta**: `isa_seguimiento_agendamiento`,
+  categoria `utility`, idioma `es_CO`, ID de plantilla en el dashboard de
+  Kapso `2320766545443667`, estado `submitted` (revision de Meta puede
+  tardar dias). Cuerpo: "hola {{1}}, retomamos tu proceso de cotización
+  para {{2}}. nos falta {{3}} para poder avanzar y agendar tu sesión con
+  el equipo de espazios. cuando puedas, respóndeme por este medio." —
+  parametros: 1) nombre del cliente, 2) referencia del proyecto, 3) dato
+  o accion pendiente.
+- **2 validaciones pendientes que Kapso pidio antes de considerar la
+  integracion completa**: (a) que el scheduler de Railway quede
+  configurado y activo (para eso pidio avisar con "scheduler activo"
+  una vez lo confirmemos), y (b) que el prompt real de Isa instruya
+  llamar `register-followup` en los momentos correctos, antes de
+  `enter_waiting`.
+
+**Hecho en esta sesion, mismo dia, en respuesta a lo anterior:**
+- **`tools-server.ts`**: agregado el scheduler interno (`setInterval`
+  cada 60s) que le pega a `FOLLOWUPS_PROCESS_URL` con header `x-api-key:
+  FOLLOWUPS_PROCESS_TOKEN` y el body recomendado por Kapso. Si cualquiera
+  de las 2 variables de entorno esta vacia, el scheduler queda
+  deshabilitado con un log de warning en vez de romper el servidor (asi
+  no bloquea el resto de `tools-server.ts` mientras se termina de
+  configurar en Railway).
+- **`.env.example`**: documentadas `FOLLOWUPS_PROCESS_URL` y
+  `FOLLOWUPS_PROCESS_TOKEN`.
+- **`docs/isa-v2-system-prompt.md`**: agregada una regla nueva a la
+  seccion 14 instruyendo llamar `register-followup` despues de
+  cualquier pregunta pendiente de calificacion (secciones 5-6.1) o de
+  agendamiento (seccion 9), justo antes de terminar el turno —
+  redactada de forma generica (el "cuando" y el "para que", no los
+  nombres de campos exactos) porque todavia no tenemos el schema
+  preciso de parametros de la herramienta tal como Kapso la registro en
+  el agent node. Marcada explicitamente en el banner del archivo como
+  **pendiente de pegar en Kapso** — no pegar hasta confirmar el schema
+  exacto de `register-followup` y que el scheduler de Railway este
+  activo.
+- **Pendiente, no hecho todavia**: pegar el secret generado
+  (`FOLLOWUPS_PROCESS_TOKEN`) en las variables de entorno de Railway (el
+  usuario debe hacerlo, esta sesion no tiene acceso al dashboard de
+  Railway) y en la funcion `process-followups` de Kapso. Una vez ambos
+  lados tengan el mismo secret y el deploy de Railway este corriendo,
+  confirmar a Kapso con "scheduler activo" y pedirles el schema exacto
+  de `register-followup` para terminar de redactar la seccion 14 con los
+  campos reales.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
@@ -1427,6 +1510,13 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
 - [ ] `sync_hubspot`: falta construir. Cuando se haga, mapear `presupuesto`
       (numero exacto, ej. "$15") al rango que espera la propiedad
       `rango_presupuesto` de HubSpot (ej. "Entre $15 y $30 millones").
+- [ ] Seguimiento automatico por inactividad (ver seccion arriba): pegar
+      `FOLLOWUPS_PROCESS_TOKEN` (ya generado, en `.env` local) en Railway
+      y en la funcion `process-followups` de Kapso; confirmar a Kapso
+      "scheduler activo"; pedirles el schema exacto de `register-followup`
+      para terminar la seccion 14 del prompt con los campos reales;
+      esperar aprobacion de Meta de la plantilla
+      `isa_seguimiento_agendamiento`; ronda de pruebas reales de WhatsApp.
 - [x] ~~Confirmar si la franja horaria de "llamada" en el prompt deberia
       capturar tambien el dia, no solo el horario~~ — resuelto 2026-09-04,
       ver seccion "Base de datos de leads de Isa v2" arriba. Pendiente
