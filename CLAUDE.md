@@ -1584,6 +1584,21 @@ al prompt real, lock version 91.**
   quedo incluida y se sincroniza `docs/isa-v2-system-prompt.md` con lo
   que Kapso realmente escribio (en vez de con el borrador que
   redactamos nosotros).
+
+**El 404 PERSISTE despues del redeploy de Kapso, descartando su
+hipotesis — confirmado con logs de Railway, mismo dia.** Captura de
+pantalla del usuario en un deploy nuevo (`d17c71e0`, iniciado
+18:35:51): 5 intentos consecutivos del scheduler, uno por minuto,
+**todos 404 `{"error":"Function not found"}`** — 18:37:01, 18:37:52,
+18:38:52, 18:39:52, 18:40:52. Esto es bastante despues de que Kapso
+dijera haber forzado un redeploy de `process-followups`, asi que la
+teoria de "ventana de publicacion asincrona" (los primeros requests
+cayeron antes de que el runtime quedara listo) queda descartada — el
+problema es persistente, no transitorio. **Pendiente: escalar esto de
+vuelta a Kapso** con los timestamps de arriba (no hay un campo
+`request_id` explicito en nuestro log, solo epoch ms + hostname del
+contenedor de Railway — suficiente para que ellos crucen con sus
+propios logs del lado de la funcion).
 - Confirmar a Kapso "scheduler activo" una vez el 404 este resuelto.
 
 ## Pendiente de informacion (bloquea partes del flujo)
