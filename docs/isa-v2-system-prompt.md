@@ -7,18 +7,25 @@ generativa)" en Kapso — historial completo de cambios más abajo.
 usuario ya pegó en Kapso la versión con el saludo nuevo y sin "asesora
 virtual" (confirmado: una prueba real posterior ya mostraba el saludo
 "Hola, hablas con Isa de Espazios..." con el nombre de perfil correcto —
-el bug 1 de la entrada anterior sí quedó resuelto). Pero esa misma prueba
+el bug 1 de la entrada anterior sí quedó resuelto). Esa misma prueba
 encontró **bugs nuevos y más serios** (ver entrada de más abajo,
 "Análisis de la prueba real 2026-09-05, tarde-noche") que este archivo ya
 tiene arreglados a nivel de prompt, y que **todavía no se han pegado en
 Kapso**. Para poner esto en producción, copiar las secciones **1 a 14**
 de aquí abajo (todo lo que está entre el separador `---` de más abajo y
 "⚠️ FIN DEL PROMPT") y pegarlo completo en el agent node de Kapso,
-reemplazando el prompt actual. **Importante:** el hallazgo más grave de
-esa prueba (la conversación pierde todo el contexto cada vez que el
-agente llama `complete_task`) **no se arregla solo con el prompt** — hay
-que pedirle al asistente de IA de Kapso que ajuste el Workflow, igual que
-se hizo con el bug de doble mensaje (ver esa misma entrada).
+reemplazando el prompt actual.
+
+**Actualización — el hallazgo más grave (`complete_task` borrando todo
+el contexto) ya se resolvió del lado de Kapso, a nivel de Workflow, no
+solo de prompt** — se le pasó la evidencia exacta al asistente de IA de
+Kapso, confirmó la causa (`complete_task` termina la ejecución completa
+en vez de solo el turno) y **retiró la herramienta de
+`enabled_default_tools`** del Workflow, además de agregar la regla de
+usar `enter_waiting` en su lugar. Ver el detalle completo dentro del
+hallazgo #1 de la entrada de abajo. **Pendiente confirmar con una prueba
+real de WhatsApp** — Kapso no pudo simular la conversación desde sus
+propias herramientas.
 
 **Cambio 2026-09-05, tarde-noche — 3 bugs encontrados revisando una
 prueba real (conversación con Yonathan Murillo, `whatsapp_messages` del
@@ -88,6 +95,58 @@ de Kapso). Hallazgos, de más a menos grave:
    nunca cierre la tarea salvo despedida explícita del cliente — pero
    dado que `enter_waiting` (el fix del bug de doble mensaje) tampoco se
    siguió siempre por puro texto, esta regla sola probablemente no basta.
+
+   **RESUELTO a nivel de plataforma, 2026-09-05 noche.** Se le pasó la
+   evidencia exacta de arriba (los 3 `whatsapp_conversation_id`, el
+   `flow_execution_id`, y las citas de frustración de Yonathan) al
+   asistente de IA de Kapso, pidiéndole que analizara y ajustara el
+   Workflow, no solo que explicara. Confirmó la causa exacta revisando
+   la ejecución `60daf216-2452-4085-b4b9-beb79d6ff381`: las variables sí
+   se guardaron bien y `guardar_lead_db` respondió correctamente, pero
+   justo después de mandar la confirmación de la reunión el agente llamó
+   `complete_task` — que **termina la ejecución completa** (no solo el
+   turno), y por eso el siguiente mensaje ya no puede reanudarla ni sus
+   variables, y el trigger `inbound_message` crea una ejecución nueva.
+   Documentado en Kapso: `complete_task` finaliza/avanza el workflow;
+   `enter_waiting` pausa la ejecución y la reanuda con el siguiente
+   mensaje manteniendo el contexto — son cosas distintas, y el Workflow
+   estaba dejando que el agente eligiera la primera libremente.
+
+   Arreglo aplicado directo en el Workflow (`lock_version: 82`), no solo
+   en texto:
+   1. Regla explícita agregada al grafo: después de una respuesta normal,
+      confirmación, envío de imagen, guardado exitoso o agendamiento, usar
+      `enter_waiting`; nunca `complete_task` después de confirmar una
+      cita; al reanudar, revisar contexto y variables antes de saludar o
+      pedir datos de nuevo.
+   2. **`complete_task` se retiró de `enabled_default_tools`** — el
+      agente ya no puede llamarlo, ni por accidente. `enter_waiting`
+      sigue habilitado, y `handoff_to_human` también (para transferencias
+      reales a un humano).
+
+   Esto sí es un cambio de plataforma, no un parche de prompt — coincide
+   con la lección ya documentada más abajo del bug de doble mensaje
+   (pedir un límite duro, no una instrucción de texto). La regla de
+   mitigación que se había agregado en la sección 14 de este archivo
+   sobre `complete_task` queda ahora redundante (el tool ya no está
+   disponible) pero se deja como red de seguridad de texto por si
+   algún día se reactiva.
+
+   **Pendiente de confirmar con una prueba real** — el propio Kapso no
+   puede simular una conversación de WhatsApp interactiva desde sus
+   herramientas. La prueba pendiente: iniciar una conversación, llegar
+   hasta confirmar un agendamiento, mandar otro mensaje después, y
+   verificar que (a) la ejecución siga en `waiting`, no aparezca
+   `complete_task` ni `execution_ended`, (b) el siguiente mensaje
+   reanude la MISMA ejecución, y (c) las variables y la cita confirmada
+   sigan disponibles sin que el cliente repita nada.
+
+   También se le preguntó por el mensaje suelto "Parece que olvidaste
+   responder la última pregunta." — no encontró una coincidencia
+   indexada en los logs, así que no se pudo confirmar si vino del modelo
+   improvisando o de algún mecanismo propio de la plataforma. Sigue sin
+   causa confirmada, pero es de menor prioridad frente al hallazgo
+   principal.
 2. **Bug de datos — el estimado se generó sin presupuesto real, sin
    plazo, sin correo.** El cliente nunca dio un valor de presupuesto en
    pesos (escribió "40m", que es área, dos veces, confundido por la

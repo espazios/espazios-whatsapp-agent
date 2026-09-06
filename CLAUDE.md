@@ -1074,6 +1074,41 @@ grave:
    mitigacion parcial mientras se resuelve del lado de Kapso — pero por
    la experiencia con `enter_waiting` (que tampoco se siguio siempre solo
    con texto), es probable que no baste sin el ajuste de plataforma.
+
+   **RESUELTO a nivel de plataforma, 2026-09-05 noche.** Se le paso al
+   asistente de IA de Kapso la evidencia exacta (los 3
+   `whatsapp_conversation_id`, el `flow_execution_id`, y las citas de
+   frustracion de Yonathan), pidiendole analizar y ajustar el Workflow,
+   no solo explicar — mismo patron que funciono con el bug de doble
+   mensaje. Confirmo la causa exacta: en la ejecucion
+   `60daf216-2452-4085-b4b9-beb79d6ff381` las variables si se habian
+   guardado bien y `guardar_lead_db` respondio correctamente, pero justo
+   despues de la confirmacion de la reunion el agente llamo
+   `complete_task`, que **termina la ejecucion completa** (no solo el
+   turno) — de ahi que el siguiente mensaje no pudiera reanudarla ni sus
+   variables, y el trigger `inbound_message` creara una ejecucion nueva
+   de cero. Documentado por Kapso: `complete_task` finaliza/avanza el
+   workflow; `enter_waiting` pausa la ejecucion y la reanuda con el
+   siguiente mensaje manteniendo el contexto — son mecanismos distintos,
+   y el Workflow dejaba que el agente eligiera libremente entre los dos.
+
+   Arreglo aplicado directo en el grafo del Workflow (`lock_version: 82`):
+   regla explicita de usar `enter_waiting` despues de cualquier respuesta
+   normal/confirmacion/imagen/guardado/agendamiento y nunca
+   `complete_task` tras confirmar una cita, y sobre todo, **se retiro
+   `complete_task` de `enabled_default_tools`** — el agente ya no puede
+   llamarlo ni por accidente (`enter_waiting` y `handoff_to_human` siguen
+   habilitados). Es un cambio de plataforma real, no un parche de texto —
+   la mitigacion de la seccion 14 del prompt queda redundante pero se
+   deja como red de seguridad. **Pendiente confirmar con una prueba real
+   de WhatsApp** (Kapso no puede simular una conversacion interactiva
+   desde sus propias herramientas): iniciar conversacion, llegar hasta
+   confirmar un agendamiento, mandar otro mensaje despues, y verificar
+   que la misma ejecucion siga viva (sin `complete_task` ni
+   `execution_ended`) con todas las variables y la cita ya confirmada
+   disponibles. Tambien se le pregunto por el mensaje suelto "Parece que
+   olvidaste responder..." — no encontro coincidencia en los logs, sigue
+   sin causa confirmada, prioridad baja.
 2. **Bug de datos — el estimado se genero sin presupuesto real, sin
    plazo, sin correo.** El cliente nunca dio un presupuesto en pesos
    (escribio "40m", que es area, dos veces, confundido por la secuencia
@@ -1120,10 +1155,10 @@ hallazgo #1 (perdida de contexto) es, con evidencia, el mas grave de todo
 lo visto hasta ahora en pruebas reales — mas que el bug de doble mensaje
 ya resuelto — porque hace que **cualquier conversacion de mas de un par
 de turnos pueda reiniciarse sola** sin que el cliente haga nada raro.
-Pendiente: (a) el usuario debe pegar esta version del prompt en Kapso, y
-(b) escalar el hallazgo de `complete_task` al asistente de IA de Kapso
-con la evidencia de arriba, igual que se hizo con el bug de doble
-mensaje.
+Pendiente: (a) el usuario debe pegar esta version del prompt en Kapso —
+el hallazgo #1 (`complete_task`) ya se resolvio del lado de Kapso (ver
+arriba), pero (b) todavia falta una prueba real de WhatsApp que lo
+confirme.
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
