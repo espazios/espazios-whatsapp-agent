@@ -1176,7 +1176,7 @@ confirme que el contexto ya no se pierde entre mensajes (el arreglo de
 `complete_task` en si ya esta confirmado del lado de Kapso, ver arriba
 — falta la confirmacion end-to-end).
 
-## Seguimiento automatico por inactividad — EN INVESTIGACION, 2026-09-06
+## Seguimiento automatico por inactividad — ESPECIFICADO, PENDIENTE DE QUE KAPSO LO CONSTRUYA, 2026-09-06
 
 El usuario reporto que hay clientes reales que dejan a Isa esperando una
 respuesta por mas de 10 minutos, sin que nadie retome el contacto.
@@ -1233,6 +1233,64 @@ investigo mas a fondo por no ser el foco de esta sesion.
 paso es o bien configurar el timeout nativo, o activar
 `kapso-client.ts` con las credenciales ya guardadas en `.env` local
 (`KAPSO_API_KEY`; falta `KAPSO_PHONE_NUMBER_ID`).
+
+**Especificacion final, mismo dia — el usuario definio la logica de
+negocio completa y pidio que la construya directamente la IA de
+Kapso** (no nuestro propio `kapso-client.ts`). Reemplaza el alcance
+amplio de arriba ("cualquier pregunta sin responder") por uno acotado:
+
+- **Alcance: solo 2 momentos** — (1) cualquier pregunta de calificacion
+  antes del estimado ilustrativo (nombre...correo, secciones 5-6.1), y
+  (2) el agendamiento mismo (tipo de agendamiento, dia/horario de
+  llamada, y el momento de esperar que el cliente confirme que ya
+  agendo por el link de reunion virtual/presencial). No aplica a otros
+  momentos (invitacion a ver detalle de paquete, FAQ, etc.) porque solo
+  en estos 2 hay un dato/accion pendiente que bloquea el objetivo final
+  (agendar).
+- **Secuencia de reintentos:** 1er seguimiento a los 10 min de la
+  pregunta/accion sin respuesta; 2do a las 4 horas habiles despues del
+  1ro; 3ro a las 8 horas habiles despues del 2do; si sigue sin
+  responder tras el 3ro, **cerrar la conversacion** con un mensaje tipo
+  "aqui estoy cuando me necesites" (anclado al contexto, reglas de tono
+  ya existentes en la seccion 10 del prompt). "Horas habiles" = 7am-7pm
+  hora Colombia (America/Bogota, UTC-5) — el conteo se pausa fuera de
+  esa ventana y sigue al abrir la siguiente. Cualquier respuesta del
+  cliente en cualquier punto cancela la cadena de seguimientos
+  pendiente.
+- **Requisito no negociable: el cierre debe conservar el contexto.**
+  Confirmado con el usuario explicitamente (via `AskUserQuestion`) que
+  esto es obligatorio, no opcional — si el cliente escribe dias
+  despues de un cierre, Isa debe recordar todo (nombre, ciudad, datos
+  ya capturados, en que punto se quedo), nunca volver a preguntar desde
+  cero. Se le advirtio explicitamente a Kapso en el mensaje que **no
+  use `complete_task` ni equivalente** para este cierre — necesita el
+  mismo tipo de estado que `enter_waiting` ya garantiza (pausado con
+  contexto intacto), dado el bug real que ya vivimos con exactamente
+  este problema (ver "RESUELTO a nivel de plataforma" mas arriba).
+- **Requisito de fiabilidad: conteo y disparo deterministicos, no a
+  criterio del modelo.** Tambien confirmado explicitamente con el
+  usuario (via `AskUserQuestion`) — el Workflow debe controlar cuantos
+  intentos van y cuando disparar cada uno, igual que se tuvo que hacer
+  con el limite duro del bug de doble mensaje (una instruccion de texto
+  sola no basta). Lo unico que se deja al criterio del agente es la
+  redaccion de cada mensaje de seguimiento y del mensaje de cierre —
+  eso ya lo sabe hacer con las reglas de tono existentes.
+- **Recordatorio de negocio incluido en el mensaje a Kapso:** cada
+  seguimiento debe seguir empujando hacia el objetivo de agendar (ej.
+  si se quedo en presupuesto, el seguimiento invita a responder eso
+  para avanzar; si se quedo esperando confirmar el agendamiento por
+  link, el seguimiento pregunta directamente si ya lo hizo) — no son
+  solo recordatorios pasivos de "sigues ahi?".
+- Se le pidio a Kapso ademas que confirme: (1) que mecanismo de
+  timer/delay usar en el grafo para disparar esto en los momentos
+  exactos, (2) si existe un estado de "cierre amigable pero con
+  contexto conservado" distinto de `complete_task` y de `waiting`
+  indefinido, y (3) como se maneja la ventana de 24h de mensajes
+  salientes de WhatsApp para estos seguimientos (si algun caso cae
+  fuera de esa ventana, si hace falta una plantilla pre-aprobada por
+  Meta en vez de texto libre).
+
+**Pendiente:** respuesta de Kapso con esta especificacion completa.
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
