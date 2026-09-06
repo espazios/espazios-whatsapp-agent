@@ -1492,12 +1492,24 @@ sometida a Meta, mismo dia.** Kapso completo:
   **pendiente de pegar en Kapso** — no pegar hasta confirmar el schema
   exacto de `register-followup` y que el scheduler de Railway este
   activo.
-- **Pendiente, no hecho todavia**: pegar el secret generado
-  (`FOLLOWUPS_PROCESS_TOKEN`) en las variables de entorno de Railway (el
-  usuario debe hacerlo, esta sesion no tiene acceso al dashboard de
-  Railway) y en la funcion `process-followups` de Kapso. Una vez ambos
-  lados tengan el mismo secret y el deploy de Railway este corriendo,
-  confirmar a Kapso con "scheduler activo".
+- **Hecho por el usuario, mismo dia:** `FOLLOWUPS_PROCESS_TOKEN`
+  (`4fdc2f9e...53d`, ver `.env` local) ya quedo pegado en las variables
+  de entorno de Railway y en la funcion `process-followups` de Kapso —
+  mismo valor en los dos lados.
+- **Verificado en logs de Railway, mismo dia (captura de pantalla del
+  usuario):** el scheduler si arranco — aparece la linea "Scheduler de
+  seguimientos activo (process-followups cada 1 min)" justo despues de
+  "Server listening". **Pero la primera llamada real ya fallo**: la
+  siguiente linea es "process-followups respondio con error" con
+  `status: 4...` (se corto en la captura, no se pudo leer el codigo
+  completo ni el `body`). Segun el contrato que dio Kapso, un 4xx solo
+  puede ser `401` (secret no coincide entre Railway y la funcion) o
+  `405` (metodo incorrecto — no deberia pasar, el scheduler manda
+  POST). **Pendiente:** conseguir el codigo de status y el `body`
+  completos del log (el usuario debe expandir/hacer scroll a esa linea
+  en Railway) para diagnosticar — sospecha principal: el secret pegado
+  en la funcion de Kapso no es exactamente el mismo string que el de
+  Railway (espacio de mas, salto de linea, o truncado al copiar).
 
 **Cambio de plan, mismo dia — la instruccion de `register-followup` la
 agrega Kapso directo en el prompt real, no nosotros.** En vez de que
