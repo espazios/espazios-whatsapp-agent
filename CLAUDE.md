@@ -1239,14 +1239,17 @@ negocio completa y pidio que la construya directamente la IA de
 Kapso** (no nuestro propio `kapso-client.ts`). Reemplaza el alcance
 amplio de arriba ("cualquier pregunta sin responder") por uno acotado:
 
-- **Alcance: solo 2 momentos** — (1) cualquier pregunta de calificacion
-  antes del estimado ilustrativo (nombre...correo, secciones 5-6.1), y
-  (2) el agendamiento mismo (tipo de agendamiento, dia/horario de
-  llamada, y el momento de esperar que el cliente confirme que ya
-  agendo por el link de reunion virtual/presencial). No aplica a otros
-  momentos (invitacion a ver detalle de paquete, FAQ, etc.) porque solo
-  en estos 2 hay un dato/accion pendiente que bloquea el objetivo final
-  (agendar).
+- **Alcance, corregido tras una segunda pasada con el usuario (via
+  `AskUserQuestion`): cualquier pregunta pendiente desde el saludo
+  hasta que la sesion queda agendada, sin excepcion** — no solo
+  calificacion (nombre...correo, secciones 5-6.1) y logistica de
+  agendamiento (tipo, dia/horario, espera de confirmacion del link),
+  sino tambien las 2 preguntas de la seccion 9 que quedaron afuera en
+  la primera version de esta especificacion: "tienes alguna duda, o te
+  gustaria que agendemos..." y "prefieres una llamada o una reunion?".
+  Sigue sin aplicar a momentos que no bloquean el objetivo (invitacion
+  a ver detalle de un paquete, respuestas de FAQ) porque ahi no hay un
+  dato/decision pendiente que impida llegar a agendar.
 - **Secuencia de reintentos:** 1er seguimiento a los 10 min de la
   pregunta/accion sin respuesta; 2do a las 4 horas habiles despues del
   1ro; 3ro a las 8 horas habiles despues del 2do; si sigue sin
