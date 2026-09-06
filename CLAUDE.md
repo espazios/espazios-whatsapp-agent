@@ -1160,6 +1160,22 @@ el hallazgo #1 (`complete_task`) ya se resolvio del lado de Kapso (ver
 arriba), pero (b) todavia falta una prueba real de WhatsApp que lo
 confirme.
 
+**Actualizacion 2026-09-06 — version pegada en Kapso, confirmada por
+fidelidad de copia.** El usuario copio las secciones 1-14 completas
+desde Kapso y las pego para verificar; se comparo palabra por palabra
+contra `docs/isa-v2-system-prompt.md` (diff automatizado, ignorando solo
+diferencias de formato markdown que el copiado no conserva): **coincide
+al 100%**, sin faltantes — la tabla de proyectos de TikTok (seccion 11)
+no vino en la copia pegada al chat por su tamano, no porque falte en
+Kapso. Confirma que ya esta en produccion: el saludo con nombre de
+perfil real, la verificacion de los 8 datos antes del estimado, el
+envio obligatorio de las 2 imagenes sin repetir el paquete ya elegido,
+el manejo correcto de reunion presencial, y las 3 reglas nuevas de la
+seccion 14. Sigue pendiente solo la prueba real de WhatsApp que
+confirme que el contexto ya no se pierde entre mensajes (el arreglo de
+`complete_task` en si ya esta confirmado del lado de Kapso, ver arriba
+— falta la confirmacion end-to-end).
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +

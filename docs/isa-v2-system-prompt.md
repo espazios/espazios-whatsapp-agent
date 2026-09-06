@@ -3,29 +3,31 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
-**⚠️ VERSIÓN PENDIENTE DE PEGAR EN KAPSO, 2026-09-05 (actualizado).** El
-usuario ya pegó en Kapso la versión con el saludo nuevo y sin "asesora
-virtual" (confirmado: una prueba real posterior ya mostraba el saludo
-"Hola, hablas con Isa de Espazios..." con el nombre de perfil correcto —
-el bug 1 de la entrada anterior sí quedó resuelto). Esa misma prueba
-encontró **bugs nuevos y más serios** (ver entrada de más abajo,
-"Análisis de la prueba real 2026-09-05, tarde-noche") que este archivo ya
-tiene arreglados a nivel de prompt, y que **todavía no se han pegado en
-Kapso**. Para poner esto en producción, copiar las secciones **1 a 14**
-de aquí abajo (todo lo que está entre el separador `---` de más abajo y
-"⚠️ FIN DEL PROMPT") y pegarlo completo en el agent node de Kapso,
-reemplazando el prompt actual.
+**✅ VERSIÓN PEGADA EN KAPSO, 2026-09-06 — confirmada por fidelidad de
+copia.** El usuario copió las secciones 1-14 completas desde Kapso y las
+pegó aquí para verificar; se comparó palabra por palabra contra este
+archivo (diff automatizado, ignorando solo diferencias de formato
+markdown que el copiado no conserva — cursivas, saltos de línea de
+listas numeradas): **coincide al 100%**, sin faltantes. La tabla de
+proyectos de TikTok (sección 11) no vino en la copia pegada al chat por
+su tamaño, no porque falte en Kapso. Esto confirma que ya está en
+producción: el saludo con nombre de perfil real, la verificación de los
+8 datos antes del estimado, el envío obligatorio de las 2 imágenes sin
+repetir el paquete ya elegido, el manejo correcto de reunión presencial,
+y las 3 reglas nuevas de la sección 14 (nunca reinterpretar en silencio
+una respuesta, confirmar agendamiento solo con texto, nunca
+`complete_task`).
 
-**Actualización — el hallazgo más grave (`complete_task` borrando todo
-el contexto) ya se resolvió del lado de Kapso, a nivel de Workflow, no
-solo de prompt** — se le pasó la evidencia exacta al asistente de IA de
-Kapso, confirmó la causa (`complete_task` termina la ejecución completa
-en vez de solo el turno) y **retiró la herramienta de
-`enabled_default_tools`** del Workflow, además de agregar la regla de
-usar `enter_waiting` en su lugar. Ver el detalle completo dentro del
-hallazgo #1 de la entrada de abajo. **Pendiente confirmar con una prueba
-real de WhatsApp** — Kapso no pudo simular la conversación desde sus
-propias herramientas.
+**El hallazgo más grave (`complete_task` borrando todo el contexto) ya
+se resolvió del lado de Kapso, a nivel de Workflow, no solo de prompt**
+— se le pasó la evidencia exacta al asistente de IA de Kapso, confirmó
+la causa (`complete_task` termina la ejecución completa en vez de solo
+el turno) y **retiró la herramienta de `enabled_default_tools`** del
+Workflow, además de agregar la regla de usar `enter_waiting` en su
+lugar. Ver el detalle completo dentro del hallazgo #1 de la entrada de
+abajo. **Pendiente confirmar con una prueba real de WhatsApp** que
+efectivamente el contexto ya no se pierde entre mensajes — ni Kapso ni
+esta sesión pueden simular esa conversación interactiva.
 
 **Cambio 2026-09-05, tarde-noche — 3 bugs encontrados revisando una
 prueba real (conversación con Yonathan Murillo, `whatsapp_messages` del
