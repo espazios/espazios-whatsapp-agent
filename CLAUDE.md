@@ -1601,6 +1601,54 @@ contenedor de Railway — suficiente para que ellos crucen con sus
 propios logs del lado de la funcion).
 - Confirmar a Kapso "scheduler activo" una vez el 404 este resuelto.
 
+**CONFIRMADO — bug real de plataforma de Kapso, fuera del alcance de
+su asistente de IA, requiere soporte humano. Mismo dia.** Kapso
+investigo mas a fondo y confirmo que el problema esta **antes del
+worker**, en la capa de routing de su Platform API:
+- La funcion existe y esta `deployed` en su control plane
+  (`function_id: 476eba19-0c54-4d0c-9b3d-2ddb65306aa6`), con el codigo
+  desplegado disponible.
+- `get_logs` de la funcion y la busqueda de logs de Kapso para ese
+  `function_id` muestran **0 invocaciones, 0 eventos** — los requests
+  de Railway nunca llegan al worker. El `404 Function not found` lo
+  genera la capa de routing de la Platform API antes de validar el
+  secret o ejecutar codigo.
+- Se descarta explicitamente: secret incorrecto, body invalido, metodo
+  incorrecto, error dentro de `process-followups`, o una ventana
+  transitoria de publicacion — un segundo redeploy no cambio el
+  resultado, el registro sigue en `deployed` pero la ruta de invocacion
+  no resuelve.
+- **Es una inconsistencia entre el registro de la funcion y el runtime
+  de invocacion** que el asistente de IA de Kapso no puede corregir
+  desde el editor de Workflows — requiere intervencion del equipo de
+  soporte/plataforma de Kapso (infraestructura interna, no algo
+  arreglable por prompt/config).
+- Kapso dio el bloque exacto para escalar a su soporte humano
+  (`https://app.kapso.ai/projects/1908f12d-3ac4-407f-b8f0-b79f954ed1d2/functions`):
+  ```
+  function_id: 476eba19-0c54-4d0c-9b3d-2ddb65306aa6
+  function_name: process-followups
+  invoke_url: https://api.kapso.ai/platform/v1/functions/476eba19-0c54-4d0c-9b3d-2ddb65306aa6/invoke
+  error: 404 {"error":"Function not found"}
+  window: 18:37:01–18:40:52 America/Bogota
+  railway_container: 05125d781de1
+  attempts: 5
+  kapso_function_invocations: 0
+  ```
+- Kapso fue explicito: **no van a declarar el scheduler resuelto**
+  hasta que una invocacion real devuelva `401`, `500` o `200` (lo que
+  sea confirmaria que la ruta ya llega al worker) — hoy sigue bloqueado
+  por el 404 de routing.
+
+**Pendiente, bloqueado por Kapso soporte (no por nosotros):** el
+usuario debe abrir un ticket de soporte con Kapso usando el bloque de
+arriba — esto ya no es algo que el asistente de IA de Kapso, esta
+sesion, o cambios de codigo en `tools-server.ts` puedan resolver. El
+scheduler de Railway ya esta listo y esperando (confirmado activo,
+llamando cada minuto) — el unico bloqueo es la infraestructura interna
+de Kapso. No enviar "scheduler activo" hasta que soporte de Kapso
+confirme el fix y una invocacion real deje de dar 404.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
@@ -1613,14 +1661,18 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
 - [ ] Seguimiento automatico por inactividad (ver seccion arriba):
       `FOLLOWUPS_PROCESS_TOKEN` ya pegado en Railway y Kapso; Kapso ya
       aplico la instruccion de `register-followup` directo en el
-      prompt real (lock version 91) y forzo un redeploy de
-      `process-followups` para el 404 — falta (a) revisar logs de
-      Railway para confirmar que el 404 desaparecio, (b) pegar el
-      prompt real aca para verificar por fidelidad de copia si la
-      regla de cancelacion (`{"action":"cancel"}`) quedo incluida, (c)
-      confirmar a Kapso "scheduler activo", (d) esperar aprobacion de
-      Meta de la plantilla
-      `isa_seguimiento_agendamiento`; ronda de pruebas reales de WhatsApp.
+      prompt real (lock version 91). **BLOQUEADO: `process-followups`
+      da 404 persistente confirmado como bug de infraestructura interna
+      de Kapso** (routing de su Platform API, no algo que su asistente
+      de IA o nosotros podamos arreglar) — el usuario debe abrir un
+      ticket de soporte con Kapso (bloque de datos + link listos, ver
+      seccion arriba). Una vez ese ticket se resuelva: (a) confirmar
+      con una invocacion real que ya no da 404, (b) pegar el prompt
+      real aca para verificar por fidelidad de copia si la regla de
+      cancelacion (`{"action":"cancel"}`) quedo incluida, (c) confirmar
+      a Kapso "scheduler activo", (d) esperar aprobacion de Meta de la
+      plantilla `isa_seguimiento_agendamiento`; ronda de pruebas reales
+      de WhatsApp.
 - [x] ~~Confirmar si la franja horaria de "llamada" en el prompt deberia
       capturar tambien el dia, no solo el horario~~ — resuelto 2026-09-04,
       ver seccion "Base de datos de leads de Isa v2" arriba. Pendiente
