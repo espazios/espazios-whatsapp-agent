@@ -1362,6 +1362,62 @@ participacion nuestra simulando mensajes reales, y que reporte avance
 por etapas del plan de 7 pasos (no todo de un solo golpe, dado que
 toca infraestructura nueva).
 
+**Avance de Kapso, paso 2 de 7 — bloqueo real encontrado + resuelto con
+un cambio de enfoque, mismo dia.** Kapso completo: verifico que
+Cloudflare Workers + D1 es compatible con el stack, confirmo el
+endpoint de resume
+(`POST /platform/v1/workflow_executions/{execution_id}/resume`,
+header `x-api-key`), confirmo que `enter_waiting` conserva contexto, y
+**creo la tabla `conversation_followups`** (estado+intento, `chain_id`
+idempotente, execution/conversation, `next_due_at`, timezone,
+timestamps de cliente/envio/cierre, indices para vencimientos).
+
+**Bloqueo real:** las herramientas de Kapso permiten crear y desplegar
+Kapso Functions individuales y editar el grafo del Workflow, pero **no
+exponen** configurar un Worker independiente con `scheduled()` para
+Cron, ni crear/bindear Cloudflare Queues, ni desplegar un scheduler
+externo que corra cada minuto. Kapso fue explicito en no simular un
+Cron con una funcion normal (quedaria desplegada pero nunca se
+ejecutaria sola) ni en dejar el Workflow a medias fingiendo que la
+cadena de seguimiento es fiable si no lo es.
+
+**Resuelto con un cambio de enfoque, no con infraestructura nueva:**
+en vez de que Kapso necesite un Cron/Queue de Cloudflare, se decidio
+usar el servidor que **ya corre 24/7 en Railway** (`tools-server.ts`,
+el mismo que atiende `/tools/estimado-ilustrativo`) como el
+"scheduler externo". Kapso construye **una sola Kapso Function nueva**
+(`process-followups`, protegida por un secret compartido tipo
+`X-API-Key`, mismo patron que `REPORT_TOKEN` en
+`leads-reporte-isa-v2`) que, al recibir un POST, hace todo lo que ya
+describio en el paso 4 de su plan (buscar cadenas vencidas, validar,
+llamar al endpoint de resume, marcar estado). El disparo cada minuto
+no viene de un Cron de Cloudflare — viene de un scheduler interno
+simple que se agrega a `tools-server.ts` en Railway, que le hace un
+POST a `process-followups` una vez por minuto. Cero infraestructura
+nueva que crear o mantener, y evita por completo el bloqueo de
+Cron/Queues.
+
+**Confirmado con el usuario (via `AskUserQuestion`):** (1) scheduler =
+Railway/`tools-server.ts` en vez de un Worker de Cloudflare nuevo; (2)
+plantilla de WhatsApp aprobada tal cual, categoria `utility`, nombre
+`isa_seguimiento_agendamiento` — Kapso puede someterla a revision de
+Meta ya.
+
+**Pendiente:**
+1. Confirmacion de Kapso de que el enfoque de Railway como scheduler
+   funciona de su lado, y que despliegue `process-followups` con la
+   URL publica de invocacion y el contrato exacto (que mandar en el
+   POST, que devuelve).
+2. Una vez tengamos eso: agregar el scheduler interno a
+   `tools-server.ts` (llamada HTTP cada minuto a `process-followups`
+   con el secret) y guardar ese secret como variable de entorno nueva
+   en Railway.
+3. Que Kapso someta la plantilla `isa_seguimiento_agendamiento` a
+   revision de Meta (categoria `utility`).
+4. Ronda de pruebas reales de WhatsApp (confirmado que participamos):
+   entrega del mensaje, cancelacion de cadena al responder, retencion
+   de contexto tras el cierre.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
