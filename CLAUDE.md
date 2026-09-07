@@ -1649,6 +1649,29 @@ llamando cada minuto) — el unico bloqueo es la infraestructura interna
 de Kapso. No enviar "scheduler activo" hasta que soporte de Kapso
 confirme el fix y una invocacion real deje de dar 404.
 
+**Ticket abierto con soporte humano de Kapso, 2026-09-07 — confirmado
+en investigacion.** El usuario abrio el ticket (intake automatico pidio
+correo/Project ID/Phone number ID, se completo con
+`project_id: 1908f12d-3ac4-407f-b8f0-b79f954ed1d2` y una nota de que el
+phone number ID no aplica a este bug — es sobre una Function, no un
+numero de WhatsApp). Soporte humano de Kapso respondio:
+- Confirmaron que el formato de la `invoke_url` es correcto.
+- Confirmaron que el proyecto **si puede correr otras Cloudflare
+  Functions exitosamente** — el problema es especifico de
+  `process-followups` (`476eba19-0c54-4d0c-9b3d-2ddb65306aa6`), no un
+  problema generico de la cuenta/proyecto.
+- Confirmaron, de su lado, que no hay eventos de invocacion
+  registrados para esta funcion — consistente con que el 404 ocurre en
+  el lookup de la ruta de invocacion, no en el codigo de la funcion.
+- Estan revisando el registro de deployment/ruta para ese
+  `function_id` con su equipo interno, van a volver con la
+  remediacion.
+
+**Pendiente: esperar la respuesta de soporte con la solucion.** No hay
+nada mas que hacer de nuestro lado hasta que confirmen el fix — el
+scheduler de Railway sigue activo y llamando cada minuto, listo para
+cuando el routing se arregle del lado de Kapso.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
