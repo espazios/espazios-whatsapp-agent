@@ -1689,14 +1689,30 @@ en cualquier caso. Kapso la creo:
   `https://api.kapso.ai/platform/v1/functions/14889b47-887e-4895-94d5-49f6ff423e2e/invoke`
 
 `FOLLOWUPS_PROCESS_URL` en `.env` local ya se actualizo temporalmente a
-esta URL nueva. **Pendiente:**
-1. El usuario debe actualizar la misma variable en Railway (dashboard →
-   Variables → `FOLLOWUPS_PROCESS_URL`) al nuevo valor de arriba.
-2. **Confirmar con Kapso que `process-followups-v2` tambien tiene
-   configuradas `FOLLOWUPS_PROCESS_TOKEN` y `KAPSO_API_KEY`** — una
-   funcion nueva no hereda las variables de entorno de la original, y
-   si faltan, la prueba diagnostica daria un falso negativo (401 o 500
-   por config faltante, no por el bug real).
+esta URL nueva.
+
+**Confirmado por Kapso: los secrets NO se pueden copiar entre funciones
+desde su asistente de IA** ("yo no tengo acceso a sus valores secretos
+para copiarlas" — restriccion normal de Cloudflare Workers, los
+secrets son de solo escritura). El usuario tiene que configurarlos el
+mismo, directo en el dashboard
+(`https://app.kapso.ai/functions/14889b47-887e-4895-94d5-49f6ff423e2e/edit`),
+con los mismos valores que ya estan en Railway/`.env`:
+`FOLLOWUPS_PROCESS_TOKEN` (el generado con `openssl rand -hex 32`) y
+`KAPSO_API_KEY` (la misma que el usuario genero originalmente para
+probar `kapso-functions/*`, ya guardada en `.env` local — se asume que
+es la misma que usa la funcion original, dado que es una key a nivel
+de proyecto, no por-funcion). Kapso dio la interpretacion exacta de
+cada resultado posible: `401` = token no coincide, `500
+missing_kapso_api_key` = falta esa key, `200` = el endpoint nuevo si
+llega al worker, `404` = sigue siendo un problema de
+routing/runtime independiente de los secrets.
+
+**Pendiente:**
+1. El usuario debe pegar `FOLLOWUPS_PROCESS_TOKEN` y `KAPSO_API_KEY` en
+   `process-followups-v2` via el link de arriba, y redeployar.
+2. El usuario debe actualizar `FOLLOWUPS_PROCESS_URL` en Railway
+   (dashboard → Variables) al nuevo valor de arriba.
 3. Una vez ambos esten confirmados, revisar logs de Railway: si
    `process-followups-v2` responde `401`/`500`/`200` en vez de 404,
    confirma que el problema era especifico del registro de la funcion
@@ -1723,13 +1739,16 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
       404 persistente, confirmado como bug de infraestructura interna
       de Kapso — ticket de soporte abierto y en investigacion. **En
       paralelo, diagnostico con `process-followups-v2`** (function_id
-      nuevo `14889b47-887e-4895-94d5-49f6ff423e2e`) — pendiente: (0a)
-      el usuario debe actualizar `FOLLOWUPS_PROCESS_URL` en Railway al
-      endpoint de v2, (0b) confirmar que v2 tiene configuradas
-      `FOLLOWUPS_PROCESS_TOKEN`/`KAPSO_API_KEY`, (0c) revisar logs de
-      Railway para ver si v2 da 401/500/200 (bug era de la funcion
-      vieja, quedarse con v2) o tambien 404 (bug general de plataforma,
-      seguir esperando soporte). Despues de eso: (a) confirmar con una
+      nuevo `14889b47-887e-4895-94d5-49f6ff423e2e`) — Kapso confirmo que
+      NO puede copiar secrets entre funciones, el usuario debe hacerlo
+      el mismo. Pendiente: (0a) el usuario pega
+      `FOLLOWUPS_PROCESS_TOKEN`/`KAPSO_API_KEY` en v2 via
+      `https://app.kapso.ai/functions/14889b47-887e-4895-94d5-49f6ff423e2e/edit`
+      y redeploya, (0b) actualiza `FOLLOWUPS_PROCESS_URL` en Railway al
+      endpoint de v2, (0c) revisar logs de Railway para ver si v2 da
+      401/500/200 (bug era de la funcion vieja, quedarse con v2) o
+      tambien 404 (bug general de plataforma, seguir esperando
+      soporte). Despues de eso: (a) confirmar con una
       invocacion real que ya no da 404, (b) pegar el prompt real aca
       para verificar por fidelidad de copia si la regla de cancelacion
       (`{"action":"cancel"}`) quedo incluida, (c) confirmar a Kapso
