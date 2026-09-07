@@ -1709,19 +1709,33 @@ llega al worker, `404` = sigue siendo un problema de
 routing/runtime independiente de los secrets.
 
 **Pendiente:**
-1. El usuario debe pegar `FOLLOWUPS_PROCESS_TOKEN` y `KAPSO_API_KEY` en
-   `process-followups-v2` via el link de arriba, y redeployar.
-2. El usuario debe actualizar `FOLLOWUPS_PROCESS_URL` en Railway
-   (dashboard → Variables) al nuevo valor de arriba.
-3. Una vez ambos esten confirmados, revisar logs de Railway: si
-   `process-followups-v2` responde `401`/`500`/`200` en vez de 404,
-   confirma que el problema era especifico del registro de la funcion
-   original — en ese caso nos quedamos usando v2 permanentemente
-   (actualizar tambien `.env.example`) y se lo reportamos a soporte
-   como dato adicional del ticket. Si v2 **tambien** da 404, es
-   evidencia de un problema general del runtime de invocacion de
-   Kapso, no de esta funcion en particular — eso sí necesitaria el fix
-   de plataforma via soporte, sin alternativa de nuestro lado.
+1. ~~El usuario debe pegar `FOLLOWUPS_PROCESS_TOKEN` y `KAPSO_API_KEY`
+   en `process-followups-v2` via el link de arriba, y redeployar.~~ —
+   hecho 2026-09-07, confirmado con captura ("Function deployed").
+2. ~~El usuario debe actualizar `FOLLOWUPS_PROCESS_URL` en Railway
+   (dashboard → Variables) al nuevo valor de arriba.~~ — hecho,
+   confirmado en la captura de Variables de Railway con el nuevo
+   endpoint, y el servicio redespliego (`b95f3216`, 16:35:26 COT).
+
+**RESULTADO: `process-followups-v2` TAMBIEN da 404 — confirma bug
+general de runtime, no del registro de la funcion original.** Log de
+Railway, primer intento post-redeploy (16:36:36 COT):
+```
+process-followups respondio con error
+status: 404
+body: {"error":"Function not found"}
+```
+Con los secrets ya confirmados y bien configurados (segun la propia
+interpretacion que dio Kapso: 401 = token, 500 = falta key, 200 =
+llega al worker, 404 = routing/runtime independiente de secrets), un
+404 en v2 descarta que el problema fuera algo especifico del registro
+de `process-followups` original — es un problema **general** del
+runtime de invocacion de funciones de Kapso en este proyecto. La
+alternativa de "duplicar la funcion" queda agotada; no hay mas
+alternativas de nuestro lado. **Pendiente: reportar este resultado al
+ticket de soporte ya abierto** — es evidencia nueva e importante (2
+function_ids distintos, mismo 404, secrets confirmados correctos en
+ambos) que reduce el espacio de causas posibles del lado de Kapso.
 
 ## Pendiente de informacion (bloquea partes del flujo)
 
@@ -1737,18 +1751,15 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
       aplico la instruccion de `register-followup` directo en el
       prompt real (lock version 91). `process-followups` original da
       404 persistente, confirmado como bug de infraestructura interna
-      de Kapso — ticket de soporte abierto y en investigacion. **En
-      paralelo, diagnostico con `process-followups-v2`** (function_id
-      nuevo `14889b47-887e-4895-94d5-49f6ff423e2e`) — Kapso confirmo que
-      NO puede copiar secrets entre funciones, el usuario debe hacerlo
-      el mismo. Pendiente: (0a) el usuario pega
-      `FOLLOWUPS_PROCESS_TOKEN`/`KAPSO_API_KEY` en v2 via
-      `https://app.kapso.ai/functions/14889b47-887e-4895-94d5-49f6ff423e2e/edit`
-      y redeploya, (0b) actualiza `FOLLOWUPS_PROCESS_URL` en Railway al
-      endpoint de v2, (0c) revisar logs de Railway para ver si v2 da
-      401/500/200 (bug era de la funcion vieja, quedarse con v2) o
-      tambien 404 (bug general de plataforma, seguir esperando
-      soporte). Despues de eso: (a) confirmar con una
+      de Kapso — ticket de soporte abierto y en investigacion. **Se
+      probo `process-followups-v2` (function_id
+      `14889b47-887e-4895-94d5-49f6ff423e2e`) como diagnostico** —
+      secrets configurados y confirmados correctos, y AUN ASI da el
+      mismo 404 `Function not found` — descarta que fuera del registro
+      especifico de la funcion original, confirma bug general del
+      runtime de invocacion de Kapso. **BLOQUEADO, sin alternativa de
+      nuestro lado: pendiente reportar este resultado al ticket de
+      soporte ya abierto** y esperar su fix. Despues de eso: (a) confirmar con una
       invocacion real que ya no da 404, (b) pegar el prompt real aca
       para verificar por fidelidad de copia si la regla de cancelacion
       (`{"action":"cancel"}`) quedo incluida, (c) confirmar a Kapso
