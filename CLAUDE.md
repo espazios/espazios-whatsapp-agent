@@ -1672,6 +1672,41 @@ nada mas que hacer de nuestro lado hasta que confirmen el fix — el
 scheduler de Railway sigue activo y llamando cada minuto, listo para
 cuando el routing se arregle del lado de Kapso.
 
+**Diagnostico en paralelo, mismo dia — funcion duplicada
+`process-followups-v2` para aislar si el bug es del registro especifico
+o del runtime en general.** Mientras se espera al ticket de soporte, se
+le propuso a Kapso (via su asistente de IA) crear una copia de la
+funcion con un `function_id` nuevo, sin esperar el fix de
+infraestructura — barato de intentar, y da informacion util al ticket
+en cualquier caso. Kapso la creo:
+- nombre: `process-followups-v2`
+- function_id nuevo: `14889b47-887e-4895-94d5-49f6ff423e2e`
+- estado: `deployed`, mismo codigo que la original
+- `process-followups` original (`476eba19-...`) **queda intacta** — la
+  herramienta de Kapso no permite borrar funciones, y de todas formas
+  conviene dejarla tal cual para el ticket de soporte.
+- invoke URL nueva:
+  `https://api.kapso.ai/platform/v1/functions/14889b47-887e-4895-94d5-49f6ff423e2e/invoke`
+
+`FOLLOWUPS_PROCESS_URL` en `.env` local ya se actualizo temporalmente a
+esta URL nueva. **Pendiente:**
+1. El usuario debe actualizar la misma variable en Railway (dashboard →
+   Variables → `FOLLOWUPS_PROCESS_URL`) al nuevo valor de arriba.
+2. **Confirmar con Kapso que `process-followups-v2` tambien tiene
+   configuradas `FOLLOWUPS_PROCESS_TOKEN` y `KAPSO_API_KEY`** — una
+   funcion nueva no hereda las variables de entorno de la original, y
+   si faltan, la prueba diagnostica daria un falso negativo (401 o 500
+   por config faltante, no por el bug real).
+3. Una vez ambos esten confirmados, revisar logs de Railway: si
+   `process-followups-v2` responde `401`/`500`/`200` en vez de 404,
+   confirma que el problema era especifico del registro de la funcion
+   original — en ese caso nos quedamos usando v2 permanentemente
+   (actualizar tambien `.env.example`) y se lo reportamos a soporte
+   como dato adicional del ticket. Si v2 **tambien** da 404, es
+   evidencia de un problema general del runtime de invocacion de
+   Kapso, no de esta funcion en particular — eso sí necesitaria el fix
+   de plataforma via soporte, sin alternativa de nuestro lado.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
@@ -1684,16 +1719,21 @@ webhook tool (desplegar `tools-server.ts` en una URL publica) — ver abajo.
 - [ ] Seguimiento automatico por inactividad (ver seccion arriba):
       `FOLLOWUPS_PROCESS_TOKEN` ya pegado en Railway y Kapso; Kapso ya
       aplico la instruccion de `register-followup` directo en el
-      prompt real (lock version 91). **BLOQUEADO: `process-followups`
-      da 404 persistente confirmado como bug de infraestructura interna
-      de Kapso** (routing de su Platform API, no algo que su asistente
-      de IA o nosotros podamos arreglar) — el usuario debe abrir un
-      ticket de soporte con Kapso (bloque de datos + link listos, ver
-      seccion arriba). Una vez ese ticket se resuelva: (a) confirmar
-      con una invocacion real que ya no da 404, (b) pegar el prompt
-      real aca para verificar por fidelidad de copia si la regla de
-      cancelacion (`{"action":"cancel"}`) quedo incluida, (c) confirmar
-      a Kapso "scheduler activo", (d) esperar aprobacion de Meta de la
+      prompt real (lock version 91). `process-followups` original da
+      404 persistente, confirmado como bug de infraestructura interna
+      de Kapso — ticket de soporte abierto y en investigacion. **En
+      paralelo, diagnostico con `process-followups-v2`** (function_id
+      nuevo `14889b47-887e-4895-94d5-49f6ff423e2e`) — pendiente: (0a)
+      el usuario debe actualizar `FOLLOWUPS_PROCESS_URL` en Railway al
+      endpoint de v2, (0b) confirmar que v2 tiene configuradas
+      `FOLLOWUPS_PROCESS_TOKEN`/`KAPSO_API_KEY`, (0c) revisar logs de
+      Railway para ver si v2 da 401/500/200 (bug era de la funcion
+      vieja, quedarse con v2) o tambien 404 (bug general de plataforma,
+      seguir esperando soporte). Despues de eso: (a) confirmar con una
+      invocacion real que ya no da 404, (b) pegar el prompt real aca
+      para verificar por fidelidad de copia si la regla de cancelacion
+      (`{"action":"cancel"}`) quedo incluida, (c) confirmar a Kapso
+      "scheduler activo", (d) esperar aprobacion de Meta de la
       plantilla `isa_seguimiento_agendamiento`; ronda de pruebas reales
       de WhatsApp.
 - [x] ~~Confirmar si la franja horaria de "llamada" en el prompt deberia
