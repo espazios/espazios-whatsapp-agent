@@ -1827,6 +1827,55 @@ pendiente:**
    toca hacerlo en el dashboard de Kapso o pedirselo a su asistente de
    IA.
 
+## Isa v2 a produccion + Isa v3 como copia de desarrollo — 2026-09-08
+
+El usuario decidio avanzar: **desplegar Isa v2 al numero real de
+produccion, y ademas duplicar ese Workflow en Kapso a uno nuevo llamado
+"Isa v3"**. Confirmado por el usuario (via `AskUserQuestion`) el rol de
+cada uno de ahora en adelante:
+
+- **Isa v2 ("Isa v2 (IA generativa)")** — queda como la version
+  **estable de produccion**, apuntando al numero real
+  `+57 310 8708467`. No se edita en caliente salvo fixes confirmados.
+- **Isa v3 (nueva, duplicado de Isa v2)** — copia de
+  **desarrollo/pruebas**. De ahora en adelante, cualquier cambio nuevo
+  de prompt o de configuracion del Workflow se prueba primero ahi
+  (Sandbox/numero de pruebas), y solo se promueve/copia a Isa v2 una vez
+  validado. Esto establece la convencion a seguir con
+  `docs/isa-v2-system-prompt.md` y los futuros syncs de prompt: cambios
+  se validan en v3 antes de promoverse a v2.
+
+**Dos puntos tecnicos a verificar apenas exista la duplicacion "Isa
+v3"** (configuracion a nivel del grafo del Workflow que un duplicado
+podria no heredar correctamente — pedirle a Kapso que lo confirme
+explicitamente, no asumirlo):
+
+1. **`complete_task` debe seguir fuera de `enabled_default_tools`** en
+   el duplicado. Esto se removio manualmente del grafo de Isa v2 el
+   2026-09-05 (`lock_version: 82`) para resolver el bug critico de
+   perdida de contexto (ver seccion "RESUELTO a nivel de plataforma"
+   arriba) — es un ajuste de plataforma, no texto del prompt, asi que no
+   hay garantia de que un "duplicar Workflow" lo copie bien en vez de
+   volver al default de la plataforma.
+2. **Los Function Tools deben seguir conectados como "Function Tool"
+   nativo**, no como "Webhook Tool": `guardar_lead_db`,
+   `register-followup`, `generar_estimado_ilustrativo`,
+   `ver_detalle_paquete`. Ya se vivio el bug de que un "Webhook Tool"
+   apuntando al invoke endpoint publico de una funcion propia falla en
+   silencio sin dejar rastro en ningun log (ver seccion de
+   `guardar_lead_db` arriba) — un duplicado podria recrear las
+   conexiones de tool de forma distinta a como quedaron en Isa v2 tras
+   ese fix.
+
+**Pendiente:** que el usuario duplique el Workflow en el dashboard de
+Kapso, confirme los 2 puntos de arriba (idealmente pidiendole
+confirmacion explicita al asistente de IA de Kapso sobre ambos), y
+ejecute el corte real de produccion (apuntar el trigger del numero
+`+57 310 8708467` a "Isa v2 (IA generativa)", desactivando el de
+"Precalificación Leads EZ") — sigue sin poder hacerse desde esta sesion
+por no tener el MCP de Kapso un campo de binding trigger→Workflow (ver
+punto 5 de la seccion anterior).
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
