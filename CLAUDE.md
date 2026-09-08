@@ -1737,6 +1737,96 @@ ticket de soporte ya abierto** — es evidencia nueva e importante (2
 function_ids distintos, mismo 404, secrets confirmados correctos en
 ambos) que reduce el espacio de causas posibles del lado de Kapso.
 
+## Revision del prompt para el corte a produccion — 2026-09-07/08
+
+El usuario pidio avanzar con el corte real: apuntar el numero de
+produccion (`+57 310 8708467`, `phone_number_id 1015963018277835`,
+`whatsapp_config_id 8d9286a3-4e43-415e-8b85-6b19cab418f6`) al Workflow
+"Isa v2 (IA generativa)". Antes de tocar nada se reviso el prompt
+pegado y se investigo el estado real via el MCP de Kapso
+(`whatsapp_numbers`, `whatsapp_conversations`, `search_logs`).
+
+**Hallazgo aparte del 2026-09-06 ("no esta claro si el numero corre
+ambos Workflows en paralelo") — RESUELTO, no es un incidente.**
+Se encontraron conversaciones reales del mismo dia bajo el mismo
+`whatsapp_config_id` corriendo `flow_name: "Precalificación Leads EZ"`
+(Isa vieja) y otra corriendo `flow_name: "Isa v2 (IA generativa)"`
+(`flow_id: 9144e40d-...`) — parecia una condicion de carrera con los
+dos Workflows disparando a la vez. **El usuario confirmo la explicacion
+real:** activo brevemente el trigger de Isa v2 sobre el numero de
+produccion para probar (de ahi la conversacion de "Nana" bajo Isa v2),
+y ya lo volvio a apagar — **hoy el trigger de Isa v2 sigue apagado en
+produccion, solo corre la Isa vieja.** Tambien aclaro que el texto de
+bienvenida de la Isa vieja que parecia igual al borrador nuevo de Isa
+v2 fue **intencional** — se inspiro en el texto de la Isa vieja para
+escribir el saludo nuevo, no al reves ni por error.
+
+**Confirmado con el usuario, mismo dia — 5 puntos de la revision
+pendiente:**
+
+1. **¿El bug de numeracion de la seccion 10/11 genera conflicto con el
+   bug pendiente de `process-followups` (404)?** No, son independientes.
+   `register-followup` (crear la cadena) es una llamada normal de
+   Function Tool desde el agent node — no depende del endpoint roto de
+   Railway/`process-followups`, asi que funciona bien aunque el
+   scheduler externo siga bloqueado. Lo unico que pasa mientras el
+   ticket de soporte no se resuelva: las cadenas se crean en D1
+   correctamente pero **nunca se procesan/envian** (nadie llama a
+   `process-followups` con exito) — es un estado degradado silencioso,
+   no un error visible para el cliente (Isa simplemente no manda
+   seguimientos automaticos todavia, igual que antes de construir esta
+   feature). No bloquea ir a producción con el resto del prompt.
+2. **Bug real de confiabilidad reportado por el usuario: "no se está
+   cumpliendo" el envio obligatorio de las 2 imagenes (general + detalle
+   del paquete elegido) en el mismo turno** — a pesar de que la
+   instruccion ya esta explicita en la seccion 6.1 desde una ronda
+   anterior ("secuencia obligatoria de 2 pasos... no es opcional").
+   Mismo patron ya visto con el bug de doble mensaje y el de
+   `complete_task`: una instruccion de texto sola no basta cuando el
+   modelo puede "decidir" saltarsela. **Pendiente: escalar a Kapso**
+   pidiendo un mecanismo mas duro (ej. que el propio tool
+   `generar_estimado_ilustrativo` devuelva ya las dos imagenes juntas
+   en una sola respuesta/accion en vez de depender de que el agente
+   haga las dos llamadas de `send_media` seguidas correctamente).
+3. **Bug de estructura en el prompt real (pegado por el usuario,
+   copiado de Kapso):** la seccion "10. Tono y estilo de conversación"
+   aparece con su titulo pero sin contenido debajo — inmediatamente
+   sigue el contenido completo de la seccion "11. Seguimiento
+   determinístico por inactividad", y *despues* de esa aparece el
+   contenido real de Tono ("Español de Colombia, con el registro propio
+   de Bogotá...") sin ningun titulo propio. La seccion de TikTok vuelve
+   a numerarse "11" (duplicado) en vez de "12", y las secciones despues
+   (12/13/14) no se corrieron. **Pendiente: pedirle a Kapso que
+   reordene** — Tono completo como seccion 10, Seguimiento como seccion
+   11 propia y separada, TikTok pasa a 12, Cuando escalar a 13,
+   Seguridad a 14, Reglas a 15 — sin perder ningun parrafo de ninguna de
+   las dos secciones que quedaron mezcladas.
+4. **Saludo (seccion 2), confirmado el texto final por el usuario:**
+   "Hola! hablas con Isa de Espazios — te acompañamos con los acabados
+   y remodelación de tu vivienda. Aquí podemos avanzar con una
+   cotización ilustrativa. [Con quién tengo el gusto? / Hablo con
+   {nombre}?]" — mas corto que la version anterior, deja fuera la
+   mencion explicita de "resolver dudas" y "agendar sesion" que la
+   seccion 2 todavia pedia como parte de "las 3 cosas" del gancho.
+   **Pendiente: actualizar el texto instructivo de la seccion 2** para
+   que ya no pida esas 3 ideas — ahora son 2 (acompañar con
+   acabados/remodelacion + cotizacion ilustrativa) — y reemplazar el
+   ejemplo literal por el texto final de arriba, manteniendo la rama de
+   nombre de perfil disponible vs. no disponible.
+5. **Alcance de "producción" aclarado:** el usuario confirmo que es el
+   corte real — apuntar `+57 310 8708467` al Workflow "Isa v2 (IA
+   generativa)" en vez de a "Precalificación Leads EZ". Confirmado por
+   `whatsapp_numbers`/`whatsapp_conversations` (MCP de Kapso) que hoy
+   el trigger de Isa v2 esta apagado ahi — el corte real (activar Isa
+   v2 + desactivar la Isa vieja para ese numero) sigue sin hacerse,
+   pendiente de terminar la revision del prompt (puntos 2 y 3 arriba)
+   antes de recomendar hacerlo. La herramienta `whatsapp_numbers`
+   (MCP de Kapso) solo expone metadata del numero (nombre, tokens de
+   webhook, etc.) — no tiene un campo para el binding trigger→Workflow,
+   asi que ese cambio de trigger no se puede hacer desde esta sesion;
+   toca hacerlo en el dashboard de Kapso o pedirselo a su asistente de
+   IA.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
