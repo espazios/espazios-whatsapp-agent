@@ -1876,6 +1876,118 @@ ejecute el corte real de produccion (apuntar el trigger del numero
 por no tener el MCP de Kapso un campo de binding trigger→Workflow (ver
 punto 5 de la seccion anterior).
 
+## Corte a produccion CONFIRMADO + 2 bugs criticos encontrados en conversaciones reales, 2026-09-11
+
+Revisando `whatsapp_conversations`/`whatsapp_messages`/`search_logs` (MCP
+de Kapso) se confirmo algo que no estaba anotado como hecho todavia:
+**el numero real de produccion (`+57 310 8708467`,
+`whatsapp_config_id 8d9286a3-4e43-415e-8b85-6b19cab418f6`, `kind:
+"production"`) ya esta corriendo Isa v2** (`flow_id
+9144e40d-cd55-4d3b-a2f2-4a019db39fa6`) — hay decenas de conversaciones
+reales recientes (leads de anuncios de Meta/Instagram via
+`ctwa_clid`/referral, ademas de contacto organico) siendo atendidas por
+Isa v2, no por la Isa vieja. El corte ya paso, aunque no quedo
+documentado explicitamente en este archivo como "hecho". Revisando esas
+conversaciones reales aparecieron 2 bugs nuevos y serios:
+
+### 1. CRITICO — `complete_task` volvio a estar disponible y se uso mal a mitad de flujo (caso María Paula Rico)
+
+El fix de plataforma del 2026-09-05 ("RESUELTO a nivel de plataforma",
+ver arriba) habia sacado `complete_task` de `enabled_default_tools` del
+Workflow para que el agente no pudiera terminarlo por accidente. En la
+conversacion real de **María Paula Rico** (`573212641452`,
+`whatsapp_conversation_id d38c3069-1ad5-4802-97a1-9e3c7b7e3b5e`,
+`flow_execution_id c30331b3-d7e2-4761-b5a0-10e2bca480f4`, 2026-09-11
+~08:40 hora Colombia) se confirmo via `search_logs`
+(`flow_event`, `agent_tool_called`) que el agente **si pudo llamar
+`complete_task`** — o sea, la restriccion de plataforma ya no esta
+aplicada (se revirtio sola, o nunca sobrevivio algun cambio posterior
+del Workflow).
+
+Secuencia real: Paula ya habia dado `ciudad` (Bogotá), `tipo_proyecto`
+(Carpintería, opcion 4) y confirmo su `presupuesto` ("20 millones") con
+un simple **"Si"** a la pregunta de confirmacion de Isa. Eso es apenas
+el dato 4 de 8 (`nombre, ciudad, tipo_proyecto, presupuesto,
+conjunto_o_barrio, m2, plazo, correo`) — le faltaban 4 datos mas. En vez
+de seguir con `conjunto_o_barrio`, el agente llamo `save_variable` y
+enseguida `complete_task` — la ejecucion termino
+(`execution_ended`, `reason: reached_terminal_node`) **sin mandarle
+ningun mensaje de cierre a Paula**. Su "Si" quedo como el ultimo mensaje
+de la conversacion — desde su lado, Isa simplemente dejo de responder a
+mitad de una pregunta de calificacion. Esto es peor que el bug original
+de perdida de contexto (ahi al menos habia un mensaje antes de que el
+flujo terminara) y confirma que la regla de la seccion 14 del prompt
+("nunca completar la tarea salvo despedida explicita") no basta sola —
+exactamente la leccion ya documentada con este mismo bug.
+
+**Accion:** escalar a Kapso YA, con esta evidencia exacta
+(`flow_execution_id`, timestamps, y que el tool SI esta disponible hoy)
+pidiendo que re-verifiquen/re-apliquen la remocion de `complete_task` de
+`enabled_default_tools` en el Workflow "Isa v2 (IA generativa)" — y que
+confirmen que la proxima vez que se duplique a "Isa v3" (ver seccion de
+arriba) este ajuste se verifique explicitamente, no se asuma. Mientras
+tanto, alguien del equipo comercial deberia contactar manualmente a
+Paula Rico (`573212641452`, Carpintería, presupuesto ~$20M — por encima
+del minimo de $10M, lead calificable) porque quedo colgada sin cierre.
+
+### 2. Leads sin telefono real (clic-en-anuncio de Instagram/Messenger) nunca se guardan en la base ni se registran para seguimiento (caso Luz Adriana Pinto)
+
+**Luz Adriana Pinto** (`whatsapp_conversation_id
+a896e800-9cca-4f97-8a3b-8a128beb08fb`, activa, llego hasta el estimado +
+detalle de paquete sin problema) es un contacto que entro con el
+telefono real **enmascarado por WhatsApp/Meta** — su registro solo trae
+`business_scoped_user_id` (`CO.26676098025421539`) y `username`
+(`adriana_pint0`, un handle de Instagram), con `wa_id` y `phone_number`
+en `null`. Esto pasa con leads que llegan via ciertos flujos de
+clic-en-anuncio (Instagram/Messenger "click to WhatsApp") donde Meta no
+comparte el numero real. **Al menos 2 conversaciones reales mas de los
+ultimos dias tienen el mismo patron** (`phone_number: null`): "Luz
+Stella🥰" y "Juana Gomez" — osea no es un caso aislado, es cualquier
+lead que entre por ese tipo de anuncio.
+
+Confirmado via `search_logs` (`function_invocation_event`) que **tanto
+`guardar-lead-isa-v2` como `register-followup` fallan con status 400 en
+CADA llamada** para esta conversacion:
+- `guardar-lead-isa-v2`: `{"ok": false, "error": "No se pudo
+  identificar el telefono del contacto
+  (execution_context.context.phone_number vacio)."}` — con los 8 datos
+  completos ya recolectados (nombre, ciudad, tipo_proyecto=Remodelación
+  Total, presupuesto=$30, conjunto_o_barrio=Bosa recreo, m2=47,
+  plazo=Inmediato, correo=adriana22007@outlook.com) listos para guardar
+  y nunca guardados.
+- `register-followup`: `{"ok": false, "error":
+  "missing_required_fields"}` en las 8 llamadas de esta conversacion —
+  el seguimiento automatico por inactividad tampoco se registra nunca
+  para este tipo de lead.
+
+Ninguna de las 2 fallas es visible para la clienta — Isa sigue
+respondiendo normal (genero el estimado, mando el detalle del paquete),
+asi que desde WhatsApp todo se ve bien. Es una perdida de datos
+completamente silenciosa del lado del backend, para todo un segmento de
+leads (los que llegan por anuncio de Instagram/Messenger sin compartir
+numero real) — ni se guardan en `leads_isa_v2` ni entran a la cadena de
+seguimiento.
+
+**Accion:** escalar a Kapso pidiendo que `guardar-lead-isa-v2` y
+`register-followup` usen un identificador de respaldo cuando
+`phone_number` viene vacio — `business_scoped_user_id` (unico y estable
+por contacto, ya viene en `execution_context.context.contact`) es el
+candidato obvio, o el `conversation_id` si prefieren atarlo a la
+conversacion en vez de a la persona. Mientras se resuelve: registrar
+manualmente a Luz Adriana Pinto con los datos de arriba (ya calificada
+completa, con correo), y revisar si "Luz Stella" y "Juana Gomez" avanzaron
+lo suficiente como para tener datos que tambien se hayan perdido.
+
+**Nota aparte:** estos 2 bugs son independientes entre si y del bug ya
+documentado de `process-followups` (404 de infraestructura, bloqueado
+por soporte de Kapso) — no se resuelven unos a otros ni comparten causa
+raiz, pero los 3 juntos significan que **hoy el pipeline de leads de Isa
+v2 en produccion tiene fugas en 3 puntos distintos**: conversaciones que
+terminan solas sin cerrar (#1), leads que nunca se guardan (#2), y
+seguimientos que nunca se procesan aunque si se registren bien (bug de
+`process-followups`, ver arriba). Vale la pena una auditoria mas amplia
+de conversaciones recientes antes de considerar el pipeline confiable.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
