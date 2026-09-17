@@ -35,8 +35,11 @@
 // -> Deploy. Luego, opcional, Secrets -> agregar REPORT_TOKEN.
 //
 // Uso: abrir la Invoke URL en el navegador para las tablas HTML, o
-// agregar `?format=json` para consumirlo desde otro sistema (json trae
-// ambas tablas: `{ok, leads: {total, rows}, leads_tibios: {total, rows}}`).
+// agregar `?format=json` para consumirlo desde otro sistema. El shape
+// JSON mantiene compatibilidad con la version anterior (`ok`, `total`,
+// `leads` como arreglo plano, igual que antes de agregar leads tibios)
+// y agrega `leads_tibios` como campo nuevo aparte — asi ninguna
+// integracion externa que ya lea `.leads`/`.total` se rompe.
 
 async function handler(request, env) {
   const url = new URL(request.url);
@@ -105,8 +108,9 @@ async function handler(request, env) {
     return new Response(
       JSON.stringify({
         ok: true,
-        leads: { total: leads.length, rows: leads },
-        leads_tibios: { total: tibios.length, rows: tibios },
+        total: leads.length, // compatibilidad con el shape anterior (solo leads_isa_v2)
+        leads,
+        leads_tibios: { total: tibios.length, rows: tibios }, // campo nuevo, no rompe lo anterior
       }),
       { headers: { "Content-Type": "application/json" } }
     );
