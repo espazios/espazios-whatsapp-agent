@@ -121,20 +121,96 @@ Ningún campo es `required` — el tool se llama dos veces con subconjuntos
 distintos de estos campos (ver `docs/isa-v2-system-prompt.md`, secciones
 6.1 y 9).
 
+## 4. Actualizar `guardar-lead-isa-v2` (agrega `username`) y desplegar `guardar-lead-tibio.js`
+
+Cambios del 2026-09-17 — dos partes:
+
+**4.1 — Volver a pegar `guardar-lead.js`.** El archivo ahora también
+guarda `username` (el "@usuario" de WhatsApp) y agrega el fallback de
+`telefono` a `business_scoped_user_id` para leads que llegan sin número
+compartido (anuncios de clic-a-WhatsApp de Instagram/Messenger — antes
+esos leads fallaban con 400 y nunca se guardaban). Ve a Functions →
+`guardar-lead-isa-v2` → reemplaza todo el código por el contenido
+actualizado de `guardar-lead.js` → **Deploy**. No hace falta tocar la
+tabla a mano — el archivo agrega la columna `username` solo (`ALTER
+TABLE`, idempotente) la primera vez que corre.
+
+**4.2 — Desplegar `guardar-lead-tibio.js` como función nueva.**
+Guarda un "lead tibio": alguien que ya dio nombre, ciudad, tipo_proyecto
+y presupuesto, sin importar si el presupuesto pasó el filtro de la
+sección 6 del prompt ni si la conversación siguió después de eso — más
+amplio que `guardar_lead_db`, que solo guarda hasta que el cliente llega
+al estimado. Mismos pasos que el punto 1 de esta guía:
+
+1. **New function**. Nombre: `guardar-lead-tibio-isa-v2`. Runtime:
+   **Cloudflare Workers**.
+2. Pega el contenido completo de `guardar-lead-tibio.js`.
+3. **NO** actives "Public endpoint" — solo la llama el agent node.
+4. **Deploy**.
+
+Después, conecta el tool nuevo en el agent node de Isa v2 (mismo lugar
+que el paso 3 de arriba, "Function Tool" nativo — **nunca** "Webhook
+Tool", ver la lección documentada en `CLAUDE.md` sobre por qué falla en
+silencio):
+
+- **Nombre del tool**: `guardar_lead_tibio`.
+- **Descripción**: "Guarda un lead tibio en cuanto tengas nombre,
+  ciudad, tipo_proyecto y presupuesto — incluso si el presupuesto no
+  pasa el filtro o la conversación se cierra después. Llámalo
+  silenciosamente, una sola vez; vuelve a llamarlo solo si el cliente
+  corrige alguno de esos 4 datos más adelante."
+- **Function**: `guardar-lead-tibio-isa-v2`.
+- **Parámetros / input schema**:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "nombre": { "type": "string" },
+    "ciudad": { "type": "string" },
+    "tipo_proyecto": { "type": "string" },
+    "presupuesto": { "type": "string" }
+  }
+}
+```
+
+`telefono` y `username` nunca los manda Isa — se identifican solos por
+el contexto de WhatsApp, igual que en `guardar_lead_db`.
+
+Por último, pega la instrucción de sección 6 de
+`docs/isa-v2-system-prompt.md` (ver ese archivo, busca
+`guardar_lead_tibio`) en el prompt real de Kapso — es un párrafo nuevo
+justo después de guardar el presupuesto.
+
 ## Verificar que funciona
 
 Después de una conversación de prueba con Isa v2 que llegue hasta el
 estimado (o hasta agendar), abre la Invoke URL de `leads-reporte-isa-v2`
-— debe aparecer una fila con los datos de esa conversación de prueba.
+— debe aparecer una fila con los datos de esa conversación de prueba en
+"Leads calificados". Después de una conversación que solo llegue hasta
+presupuesto (así se cierre por filtro después), debe aparecer una fila
+en "Leads tibios".
 
 ## Notas
 
-- La tabla `leads` se crea sola (`CREATE TABLE IF NOT EXISTS`) la primera
-  vez que corre cualquiera de las dos funciones — no hace falta correr
-  ninguna migración a mano.
-- La llave para no duplicar filas es el número de WhatsApp del contacto
-  (`telefono`), que Kapso inyecta automáticamente en cada llamada al
-  tool — Isa nunca lo pasa como argumento.
+- Las tablas `leads_isa_v2` y `leads_tibios_isa_v2` se crean solas
+  (`CREATE TABLE IF NOT EXISTS`) la primera vez que corre cualquiera de
+  las funciones — no hace falta correr ninguna migración a mano. La
+  columna `username`, agregada 2026-09-17 a una tabla que ya existía, sí
+  necesita un `ALTER TABLE` — también corre solo, dentro del código de
+  `guardar-lead.js` y `leads-reporte.js` (idempotente, se ignora si la
+  columna ya existe).
+- La llave para no duplicar filas es un identificador estable del
+  contacto (`telefono`) — el número real de WhatsApp cuando Kapso lo
+  comparte, o `business_scoped_user_id` cuando no (leads de anuncios de
+  clic-a-WhatsApp de Instagram/Messenger, donde Meta no comparte el
+  número). Kapso lo inyecta automáticamente en cada llamada al tool —
+  Isa nunca lo pasa como argumento. Un `telefono` con formato
+  `CO.xxxxxxxxxxxx` en vez de un número real significa que hay que
+  confirmar el número con el cliente antes de llamarlo.
+- `username` (el "@usuario" de WhatsApp) tampoco lo pasa Isa nunca como
+  argumento — se lee solo del contexto, igual que `telefono`. Puede
+  quedar vacío si el contacto no configuró uno.
 - Para reuniones (virtual/presencial), el reporte solo puede decir que
   el cliente **eligió** ese tipo de agendamiento — no la fecha/hora real,
   porque esa la define el cliente directamente en el link estático de

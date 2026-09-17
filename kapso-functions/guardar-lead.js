@@ -40,6 +40,15 @@
 // debe confirmar el numero real con el cliente antes de llamar si la
 // columna `telefono` tiene ese formato.
 //
+// Columna `username` agregada 2026-09-17: el "@usuario" de WhatsApp
+// (funcionalidad de handles), igual que el telefono nunca lo manda Isa
+// como argumento — se lee solo de `context.contact.username` /
+// `context.whatsapp_username`. Como la tabla `leads_isa_v2` ya existia
+// en produccion sin esta columna, se agrega con `ALTER TABLE ADD
+// COLUMN` (SQLite/D1 no soporta "IF NOT EXISTS" ahi, asi que el ALTER
+// va en un try/catch que ignora el error de "columna duplicada" en las
+// siguientes ejecuciones — es idempotente).
+//
 // Deploy: Kapso dashboard -> Functions -> New function -> pegar este
 // archivo completo -> Runtime: Cloudflare Workers -> Deploy.
 // No necesita Secrets ni bindings adicionales — env.DB (D1) esta
@@ -71,6 +80,11 @@ async function handler(request, env) {
     );
   }
 
+  // El "@usuario" de WhatsApp (funcionalidad de handles) — puede venir
+  // vacio si el contacto no configuro uno; nunca bloquea el guardado.
+  const username =
+    (context.contact && context.contact.username) || context.whatsapp_username || null;
+
   await env.DB.prepare(
     `CREATE TABLE IF NOT EXISTS leads_isa_v2 (
       telefono TEXT PRIMARY KEY,
@@ -87,11 +101,22 @@ async function handler(request, env) {
       fecha_llamada TEXT,
       hora_llamada TEXT,
       notas_agendamiento TEXT,
+      username TEXT,
       conversation_id TEXT,
       creado_en TEXT,
       actualizado_en TEXT
     )`
   ).run();
+
+  // Migracion para tablas creadas antes de agregar `username` — ver
+  // nota arriba. Solo aplica en tablas viejas; en una tabla nueva la
+  // columna ya viene del CREATE TABLE de arriba y este ALTER falla con
+  // "duplicate column name", que se ignora a proposito.
+  try {
+    await env.DB.prepare(`ALTER TABLE leads_isa_v2 ADD COLUMN username TEXT`).run();
+  } catch (err) {
+    if (!String(err && err.message).toLowerCase().includes("duplicate column")) throw err;
+  }
 
   // Solo estas columnas se pueden escribir — cualquier otra cosa que
   // venga en `input` (o venga vacia/null) se ignora, nunca se inserta
@@ -123,31 +148,42 @@ async function handler(request, env) {
     .bind(telefono)
     .first();
 
+  // Nunca pisa un `username` ya guardado con null solo porque esta
+  // invocacion puntual no logro derivarlo del contexto.
+  const camposAActualizar = username ? [...camposPresentes, "username"] : camposPresentes;
+
   if (existente) {
-    if (camposPresentes.length === 0) {
+    if (camposAActualizar.length === 0) {
       return new Response(
         JSON.stringify({ ok: true, telefono, mensaje: "Lead ya existia, sin campos nuevos que actualizar." }),
         { headers: { "Content-Type": "application/json" } }
       );
     }
-    const setClause = camposPresentes.map((campo) => `${campo} = ?`).join(", ");
-    const valores = camposPresentes.map((campo) => input[campo]);
+    const setClause = camposAActualizar.map((campo) => `${campo} = ?`).join(", ");
+    const valores = camposAActualizar.map((campo) => (campo === "username" ? username : input[campo]));
     await env.DB.prepare(
       `UPDATE leads_isa_v2 SET ${setClause}, actualizado_en = ?, conversation_id = ? WHERE telefono = ?`
     )
       .bind(...valores, ahora, conversationId, telefono)
       .run();
   } else {
-    const columnas = ["telefono", ...camposPresentes, "conversation_id", "creado_en", "actualizado_en"];
+    const columnas = ["telefono", ...camposPresentes, "username", "conversation_id", "creado_en", "actualizado_en"];
     const marcadores = columnas.map(() => "?").join(", ");
-    const valores = [telefono, ...camposPresentes.map((campo) => input[campo]), conversationId, ahora, ahora];
+    const valores = [
+      telefono,
+      ...camposPresentes.map((campo) => input[campo]),
+      username,
+      conversationId,
+      ahora,
+      ahora,
+    ];
     await env.DB.prepare(`INSERT INTO leads_isa_v2 (${columnas.join(", ")}) VALUES (${marcadores})`)
       .bind(...valores)
       .run();
   }
 
   return new Response(
-    JSON.stringify({ ok: true, telefono, campos_guardados: camposPresentes }),
+    JSON.stringify({ ok: true, telefono, campos_guardados: camposAActualizar }),
     { headers: { "Content-Type": "application/json" } }
   );
 }

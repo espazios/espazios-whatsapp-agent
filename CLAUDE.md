@@ -915,6 +915,40 @@ hay archivo fuente que editar desde aca) — hay que pedirle el mismo fix
 directamente al asistente de IA de Kapso o editarla a mano en el
 dashboard.
 
+## Segunda base de leads (`leads_tibios_isa_v2`) + columna `username`, 2026-09-17
+
+A pedido del usuario: una tabla separada para "leads tibios" — alguien
+que ya dio `nombre`, `ciudad`, `tipo_proyecto` y `presupuesto`, sin
+importar si el presupuesto pasa el filtro de la seccion 6 ni si la
+conversacion sigue despues (mas amplia que `leads_isa_v2`, que solo
+guarda una vez completos los 8 datos hasta `correo`). Tambien a pedido
+del usuario: ambas tablas ahora guardan `username`, el "@usuario" de
+WhatsApp (funcionalidad de handles), auto-derivado del contexto igual
+que `telefono` — Isa nunca lo pasa como argumento.
+
+Construido en este repo (falta el deploy manual en Kapso, ver
+`kapso-functions/README.md` seccion 4):
+- `kapso-functions/guardar-lead-tibio.js` — Kapso Function nueva, tabla
+  nueva `leads_tibios_isa_v2` (telefono, nombre, ciudad, tipo_proyecto,
+  presupuesto, username, conversation_id, creado_en, actualizado_en).
+  Mismo fallback de telefono que `guardar-lead.js`
+  (`phone_number` → `wa_id` → `business_scoped_user_id`).
+- `kapso-functions/guardar-lead.js` — actualizado para agregar
+  `username` a `leads_isa_v2` (columna nueva vía `ALTER TABLE`
+  idempotente, porque la tabla ya existia en produccion).
+- `kapso-functions/leads-reporte.js` — actualizado para mostrar ambas
+  tablas en una sola pagina, con `username` como columna en las dos.
+- `docs/isa-v2-system-prompt.md`, seccion 6 — nuevo parrafo que
+  instruye llamar `guardar_lead_tibio` justo despues de guardar
+  `presupuesto` (ver nota de sincronizacion al inicio del archivo,
+  pendiente de pegar en Kapso).
+
+**Pendiente:** desplegar `guardar-lead-tibio-isa-v2` como Kapso Function
+nueva, volver a pegar `guardar-lead-isa-v2` y `leads-reporte-isa-v2`
+actualizados, conectar `guardar_lead_tibio` como tool nativo del agent
+node (nunca "Webhook Tool"), y pegar el parrafo nuevo de la seccion 6 en
+el prompt real — pasos exactos en `kapso-functions/README.md`.
+
 ## Bug de doble mensaje por turno en Isa v2 — RESUELTO, 2026-09-05
 
 Encontrado revisando conversaciones de prueba reales (Yonathan Murillo,

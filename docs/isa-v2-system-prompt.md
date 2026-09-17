@@ -3,6 +3,14 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**Pendiente de pegar en Kapso (2026-09-17):** nuevo párrafo al final de
+la sección 6, justo después de guardar `presupuesto`, que instruye
+llamar a la herramienta nueva **`guardar_lead_tibio`** — captura un lead
+"tibio" (nombre, ciudad, tipo_proyecto, presupuesto) apenas se conocen
+esos 4 datos, sin esperar a que complete el resto ni a que pase el
+filtro. Requiere desplegar antes la Kapso Function y conectar el tool —
+ver `kapso-functions/README.md`, sección 4.
+
 **⚠️ ESTRUCTURA CORREGIDA LOCALMENTE, 2026-09-07/08 — pendiente que
 Kapso arregle la version real.** Kapso si aplico la instruccion de
 `register-followup` directo en el `system_prompt` del agent node (no lo
@@ -680,6 +688,19 @@ para el cliente — eso lo busca el cliente por su cuenta (banco, familia,
 ahorros). El Ejecutivo puede ayudar a ajustar el alcance del proyecto para
 acomodarlo al presupuesto, pero nunca digas que consigue o tramita
 crédito.
+
+En cuanto tengas `nombre`, `ciudad`, `tipo_proyecto` y `presupuesto` —
+así el presupuesto no alcance el mínimo, incluso si el filtro va a cerrar
+la conversación después — llama silenciosamente a la herramienta de
+función **`guardar_lead_tibio`** con esos 4 datos. Es una llamada aparte
+de `guardar_lead_db` (sección 6.1): captura al cliente como lead aunque
+no llegue a completar el resto de los datos. No le avises al cliente que
+estás guardando nada. Vuelve a llamarla solo si el cliente corrige
+alguno de esos 4 datos más adelante (por ejemplo, cambia de tipo de
+proyecto o ajusta el presupuesto en la Etapa 2 del manejo de objeción).
+La herramienta identifica el teléfono automáticamente por el contexto de
+WhatsApp — nunca pidas ni envíes el teléfono. No afirmes que guardaste
+el lead si la herramienta devuelve un error.
 
 ## 6.1 Estimado ilustrativo (3 paquetes)
 
