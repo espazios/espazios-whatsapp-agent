@@ -22,6 +22,24 @@
 // "Payload structure"). Se usa como llave primaria para no duplicar
 // leads entre la llamada 1 y la llamada 2.
 //
+// Bug real encontrado 2026-09-11 y confirmado en produccion 2026-09-17
+// (8 de 10 invocaciones recientes fallando con 400): los leads que
+// llegan por un anuncio de clic-a-WhatsApp de Instagram/Messenger no
+// traen `phone_number` ni `contact.wa_id` — Meta no comparte el numero
+// real en ese flujo. Kapso SI manda en esos casos un identificador
+// estable por contacto, `context.contact.business_scoped_user_id`
+// (duplicado tambien en `context.whatsapp_business_scoped_user_id`),
+// confirmado via `search_logs` (`function_invocation_event`) en un caso
+// real (Yesid Pintor, `phone_number` y `contact.wa_id` ambos null,
+// `business_scoped_user_id: "CO.2184210032444768"`). Sin este fallback,
+// esos leads nunca se guardaban — perdida de datos silenciosa para todo
+// un segmento (leads de anuncios de Instagram/Messenger), no un caso
+// raro aislado. El formato distingue solo: un `business_scoped_user_id`
+// se ve como "CO.xxxxxxxxxxxx" (no es un numero marcable), a diferencia
+// de un telefono real ("57xxxxxxxxxx") — quien lea `leads-reporte-isa-v2`
+// debe confirmar el numero real con el cliente antes de llamar si la
+// columna `telefono` tiene ese formato.
+//
 // Deploy: Kapso dashboard -> Functions -> New function -> pegar este
 // archivo completo -> Runtime: Cloudflare Workers -> Deploy.
 // No necesita Secrets ni bindings adicionales — env.DB (D1) esta
@@ -38,13 +56,16 @@ async function handler(request, env) {
     context.phone_number ||
     whatsappContext.phone_number ||
     (context.contact && context.contact.wa_id) ||
+    (context.contact && context.contact.business_scoped_user_id) ||
+    context.whatsapp_business_scoped_user_id ||
     null;
 
   if (!telefono) {
     return new Response(
       JSON.stringify({
         ok: false,
-        error: "No se pudo identificar el telefono del contacto (execution_context.context.phone_number vacio).",
+        error:
+          "No se pudo identificar el contacto (phone_number, contact.wa_id y business_scoped_user_id vacios).",
       }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );

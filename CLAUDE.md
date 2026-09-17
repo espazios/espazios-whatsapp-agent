@@ -874,6 +874,47 @@ proyecto donde se puede ver `leads_isa_v2` directamente sin necesitar
 ninguna funcion nuestra — probablemente se pueda dar de baja
 `leads-reporte-isa-v2` y quedarse solo con la vista nativa.
 
+**Bug critico confirmado y arreglado en el codigo, 2026-09-17 — 80% de
+los leads no se estaban guardando.** El usuario pidio explicitamente
+una base de datos de "todos los leads que completaron hasta cierto
+punto (el correo)" — que es exactamente lo que `guardar_lead_db` ya
+hace, disparado justo despues del ultimo de los 8 datos de
+calificacion. Pero al revisar `search_logs`
+(`function_invocation_event`, `guardar-lead-isa-v2`, ultimos 10
+intentos) se confirmo que **8 de 10 fallaban con status 400** — mucho
+mas grave que el "caso raro" anotado el 2026-09-11 (`phone_number:
+null` en leads de anuncios de Instagram/Messenger, ver seccion "Corte a
+produccion CONFIRMADO"). Log real inspeccionado (Yesid Pintor,
+`whatsapp_conversation_id 5a12e33d-63a8-4194-a223-cfbee66e9497`): con
+los 8 datos de calificacion completos y listos para guardar,
+`execution_context.context.phone_number` y `context.contact.wa_id`
+ambos `null`, pero `context.contact.business_scoped_user_id:
+"CO.2184210032444768"` (duplicado tambien en
+`context.whatsapp_business_scoped_user_id`) **si estaba presente** — un
+identificador estable por contacto que el codigo simplemente no
+intentaba. **Arreglado** en `kapso-functions/guardar-lead.js`: el
+fallback de `telefono` ahora intenta, en orden, `phone_number` →
+`whatsapp_context.phone_number` → `contact.wa_id` →
+`contact.business_scoped_user_id` → `context.whatsapp_business_scoped_user_id`
+— solo falla si los 5 vienen vacios. Quien lea `leads-reporte-isa-v2`
+debe confirmar el numero real con el cliente antes de llamar si la
+columna `telefono` tiene formato `CO.xxxxxxxxxxxx` en vez de un numero
+real (`57xxxxxxxxxx`).
+
+**Pendiente: pegar el archivo actualizado en el dashboard de Kapso**
+(Functions → `guardar-lead-isa-v2` → reemplazar el codigo completo →
+Deploy) — el deploy de Kapso Functions es manual, un push a este repo
+no lo actualiza solo. Despues de pegarlo, probar con una conversacion
+real que llegue por anuncio de Instagram/Messenger (o revisar
+`search_logs` de la proxima invocacion) para confirmar que ya no da 400.
+
+**Pendiente relacionado, no resuelto aca:** `register-followup` tiene
+el mismo sintoma (`missing_required_fields` para el mismo tipo de lead
+sin `phone_number`), pero esa Kapso Function no vive en este repo (no
+hay archivo fuente que editar desde aca) — hay que pedirle el mismo fix
+directamente al asistente de IA de Kapso o editarla a mano en el
+dashboard.
+
 ## Bug de doble mensaje por turno en Isa v2 — RESUELTO, 2026-09-05
 
 Encontrado revisando conversaciones de prueba reales (Yonathan Murillo,
