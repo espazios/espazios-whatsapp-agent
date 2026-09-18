@@ -127,13 +127,23 @@ function estimarParaPaquete(
 
   const banosPreferido = banos === 2 ? 2 : BANOS_POR_DEFECTO;
 
+  // Cuando el m2 tiene mas de una fila de tarifa (banda 31-44, varia segun
+  // banos) y no llego un `banos` real en esta llamada, la fila que se va a
+  // usar es una suposicion (1 baño por defecto) — se marca `aproximado`
+  // para que la imagen lo avise con "*", en vez de mostrar un precio con
+  // toda confianza que puede no ser el real. Bug real confirmado en
+  // produccion (2026-09-18): una llamada sin `banos` mostro el precio de 1
+  // baño para un apartamento de 2, sin ningun aviso.
+  const filasDelM2 = delPaquete.filter((f) => f.m2 === m2);
+  const banosAmbiguo = filasDelM2.length > 1 && banos === undefined;
+
   const exacta = filasEnM2(delPaquete, m2, banosPreferido)[0];
   if (exacta) {
     return {
       paquete,
       precioDesde: totalDesde(exacta.precioM2Descuento, m2),
       precioDesdeSinDescuento: totalDesde(exacta.precioM2, m2),
-      aproximado: false,
+      aproximado: banosAmbiguo,
       banos: exacta.banos,
       habitaciones: exacta.habitaciones,
     };
