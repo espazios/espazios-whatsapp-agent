@@ -22,6 +22,33 @@
 // "Payload structure"). Se usa como llave primaria para no duplicar
 // leads entre la llamada 1 y la llamada 2.
 //
+// Bug real encontrado 2026-09-11 y confirmado en produccion 2026-09-17
+// (8 de 10 invocaciones recientes fallando con 400): los leads que
+// llegan por un anuncio de clic-a-WhatsApp de Instagram/Messenger no
+// traen `phone_number` ni `contact.wa_id` — Meta no comparte el numero
+// real en ese flujo. Kapso SI manda en esos casos un identificador
+// estable por contacto, `context.contact.business_scoped_user_id`
+// (duplicado tambien en `context.whatsapp_business_scoped_user_id`),
+// confirmado via `search_logs` (`function_invocation_event`) en un caso
+// real (Yesid Pintor, `phone_number` y `contact.wa_id` ambos null,
+// `business_scoped_user_id: "CO.2184210032444768"`). Sin este fallback,
+// esos leads nunca se guardaban — perdida de datos silenciosa para todo
+// un segmento (leads de anuncios de Instagram/Messenger), no un caso
+// raro aislado. El formato distingue solo: un `business_scoped_user_id`
+// se ve como "CO.xxxxxxxxxxxx" (no es un numero marcable), a diferencia
+// de un telefono real ("57xxxxxxxxxx") — quien lea `leads-reporte-isa-v2`
+// debe confirmar el numero real con el cliente antes de llamar si la
+// columna `telefono` tiene ese formato.
+//
+// Columna `username` agregada 2026-09-17: el "@usuario" de WhatsApp
+// (funcionalidad de handles), igual que el telefono nunca lo manda Isa
+// como argumento — se lee solo de `context.contact.username` /
+// `context.whatsapp_username`. Como la tabla `leads_isa_v2` ya existia
+// en produccion sin esta columna, se agrega con `ALTER TABLE ADD
+// COLUMN` (SQLite/D1 no soporta "IF NOT EXISTS" ahi, asi que el ALTER
+// va en un try/catch que ignora el error de "columna duplicada" en las
+// siguientes ejecuciones — es idempotente).
+//
 // Deploy: Kapso dashboard -> Functions -> New function -> pegar este
 // archivo completo -> Runtime: Cloudflare Workers -> Deploy.
 // No necesita Secrets ni bindings adicionales — env.DB (D1) esta
@@ -38,17 +65,25 @@ async function handler(request, env) {
     context.phone_number ||
     whatsappContext.phone_number ||
     (context.contact && context.contact.wa_id) ||
+    (context.contact && context.contact.business_scoped_user_id) ||
+    context.whatsapp_business_scoped_user_id ||
     null;
 
   if (!telefono) {
     return new Response(
       JSON.stringify({
         ok: false,
-        error: "No se pudo identificar el telefono del contacto (execution_context.context.phone_number vacio).",
+        error:
+          "No se pudo identificar el contacto (phone_number, contact.wa_id y business_scoped_user_id vacios).",
       }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
+
+  // El "@usuario" de WhatsApp (funcionalidad de handles) — puede venir
+  // vacio si el contacto no configuro uno; nunca bloquea el guardado.
+  const username =
+    (context.contact && context.contact.username) || context.whatsapp_username || null;
 
   await env.DB.prepare(
     `CREATE TABLE IF NOT EXISTS leads_isa_v2 (
@@ -66,11 +101,22 @@ async function handler(request, env) {
       fecha_llamada TEXT,
       hora_llamada TEXT,
       notas_agendamiento TEXT,
+      username TEXT,
       conversation_id TEXT,
       creado_en TEXT,
       actualizado_en TEXT
     )`
   ).run();
+
+  // Migracion para tablas creadas antes de agregar `username` — ver
+  // nota arriba. Solo aplica en tablas viejas; en una tabla nueva la
+  // columna ya viene del CREATE TABLE de arriba y este ALTER falla con
+  // "duplicate column name", que se ignora a proposito.
+  try {
+    await env.DB.prepare(`ALTER TABLE leads_isa_v2 ADD COLUMN username TEXT`).run();
+  } catch (err) {
+    if (!String(err && err.message).toLowerCase().includes("duplicate column")) throw err;
+  }
 
   // Solo estas columnas se pueden escribir — cualquier otra cosa que
   // venga en `input` (o venga vacia/null) se ignora, nunca se inserta
@@ -102,31 +148,42 @@ async function handler(request, env) {
     .bind(telefono)
     .first();
 
+  // Nunca pisa un `username` ya guardado con null solo porque esta
+  // invocacion puntual no logro derivarlo del contexto.
+  const camposAActualizar = username ? [...camposPresentes, "username"] : camposPresentes;
+
   if (existente) {
-    if (camposPresentes.length === 0) {
+    if (camposAActualizar.length === 0) {
       return new Response(
         JSON.stringify({ ok: true, telefono, mensaje: "Lead ya existia, sin campos nuevos que actualizar." }),
         { headers: { "Content-Type": "application/json" } }
       );
     }
-    const setClause = camposPresentes.map((campo) => `${campo} = ?`).join(", ");
-    const valores = camposPresentes.map((campo) => input[campo]);
+    const setClause = camposAActualizar.map((campo) => `${campo} = ?`).join(", ");
+    const valores = camposAActualizar.map((campo) => (campo === "username" ? username : input[campo]));
     await env.DB.prepare(
       `UPDATE leads_isa_v2 SET ${setClause}, actualizado_en = ?, conversation_id = ? WHERE telefono = ?`
     )
       .bind(...valores, ahora, conversationId, telefono)
       .run();
   } else {
-    const columnas = ["telefono", ...camposPresentes, "conversation_id", "creado_en", "actualizado_en"];
+    const columnas = ["telefono", ...camposPresentes, "username", "conversation_id", "creado_en", "actualizado_en"];
     const marcadores = columnas.map(() => "?").join(", ");
-    const valores = [telefono, ...camposPresentes.map((campo) => input[campo]), conversationId, ahora, ahora];
+    const valores = [
+      telefono,
+      ...camposPresentes.map((campo) => input[campo]),
+      username,
+      conversationId,
+      ahora,
+      ahora,
+    ];
     await env.DB.prepare(`INSERT INTO leads_isa_v2 (${columnas.join(", ")}) VALUES (${marcadores})`)
       .bind(...valores)
       .run();
   }
 
   return new Response(
-    JSON.stringify({ ok: true, telefono, campos_guardados: camposPresentes }),
+    JSON.stringify({ ok: true, telefono, campos_guardados: camposAActualizar }),
     { headers: { "Content-Type": "application/json" } }
   );
 }

@@ -874,6 +874,81 @@ proyecto donde se puede ver `leads_isa_v2` directamente sin necesitar
 ninguna funcion nuestra — probablemente se pueda dar de baja
 `leads-reporte-isa-v2` y quedarse solo con la vista nativa.
 
+**Bug critico confirmado y arreglado en el codigo, 2026-09-17 — 80% de
+los leads no se estaban guardando.** El usuario pidio explicitamente
+una base de datos de "todos los leads que completaron hasta cierto
+punto (el correo)" — que es exactamente lo que `guardar_lead_db` ya
+hace, disparado justo despues del ultimo de los 8 datos de
+calificacion. Pero al revisar `search_logs`
+(`function_invocation_event`, `guardar-lead-isa-v2`, ultimos 10
+intentos) se confirmo que **8 de 10 fallaban con status 400** — mucho
+mas grave que el "caso raro" anotado el 2026-09-11 (`phone_number:
+null` en leads de anuncios de Instagram/Messenger, ver seccion "Corte a
+produccion CONFIRMADO"). Log real inspeccionado (Yesid Pintor,
+`whatsapp_conversation_id 5a12e33d-63a8-4194-a223-cfbee66e9497`): con
+los 8 datos de calificacion completos y listos para guardar,
+`execution_context.context.phone_number` y `context.contact.wa_id`
+ambos `null`, pero `context.contact.business_scoped_user_id:
+"CO.2184210032444768"` (duplicado tambien en
+`context.whatsapp_business_scoped_user_id`) **si estaba presente** — un
+identificador estable por contacto que el codigo simplemente no
+intentaba. **Arreglado** en `kapso-functions/guardar-lead.js`: el
+fallback de `telefono` ahora intenta, en orden, `phone_number` →
+`whatsapp_context.phone_number` → `contact.wa_id` →
+`contact.business_scoped_user_id` → `context.whatsapp_business_scoped_user_id`
+— solo falla si los 5 vienen vacios. Quien lea `leads-reporte-isa-v2`
+debe confirmar el numero real con el cliente antes de llamar si la
+columna `telefono` tiene formato `CO.xxxxxxxxxxxx` en vez de un numero
+real (`57xxxxxxxxxx`).
+
+**Pendiente: pegar el archivo actualizado en el dashboard de Kapso**
+(Functions → `guardar-lead-isa-v2` → reemplazar el codigo completo →
+Deploy) — el deploy de Kapso Functions es manual, un push a este repo
+no lo actualiza solo. Despues de pegarlo, probar con una conversacion
+real que llegue por anuncio de Instagram/Messenger (o revisar
+`search_logs` de la proxima invocacion) para confirmar que ya no da 400.
+
+**Pendiente relacionado, no resuelto aca:** `register-followup` tiene
+el mismo sintoma (`missing_required_fields` para el mismo tipo de lead
+sin `phone_number`), pero esa Kapso Function no vive en este repo (no
+hay archivo fuente que editar desde aca) — hay que pedirle el mismo fix
+directamente al asistente de IA de Kapso o editarla a mano en el
+dashboard.
+
+## Segunda base de leads (`leads_tibios_isa_v2`) + columna `username`, 2026-09-17
+
+A pedido del usuario: una tabla separada para "leads tibios" — alguien
+que ya dio `nombre`, `ciudad`, `tipo_proyecto` y `presupuesto`, sin
+importar si el presupuesto pasa el filtro de la seccion 6 ni si la
+conversacion sigue despues (mas amplia que `leads_isa_v2`, que solo
+guarda una vez completos los 8 datos hasta `correo`). Tambien a pedido
+del usuario: ambas tablas ahora guardan `username`, el "@usuario" de
+WhatsApp (funcionalidad de handles), auto-derivado del contexto igual
+que `telefono` — Isa nunca lo pasa como argumento.
+
+Construido en este repo (falta el deploy manual en Kapso, ver
+`kapso-functions/README.md` seccion 4):
+- `kapso-functions/guardar-lead-tibio.js` — Kapso Function nueva, tabla
+  nueva `leads_tibios_isa_v2` (telefono, nombre, ciudad, tipo_proyecto,
+  presupuesto, username, conversation_id, creado_en, actualizado_en).
+  Mismo fallback de telefono que `guardar-lead.js`
+  (`phone_number` → `wa_id` → `business_scoped_user_id`).
+- `kapso-functions/guardar-lead.js` — actualizado para agregar
+  `username` a `leads_isa_v2` (columna nueva vía `ALTER TABLE`
+  idempotente, porque la tabla ya existia en produccion).
+- `kapso-functions/leads-reporte.js` — actualizado para mostrar ambas
+  tablas en una sola pagina, con `username` como columna en las dos.
+- `docs/isa-v2-system-prompt.md`, seccion 6 — nuevo parrafo que
+  instruye llamar `guardar_lead_tibio` justo despues de guardar
+  `presupuesto` (ver nota de sincronizacion al inicio del archivo,
+  pendiente de pegar en Kapso).
+
+**Pendiente:** desplegar `guardar-lead-tibio-isa-v2` como Kapso Function
+nueva, volver a pegar `guardar-lead-isa-v2` y `leads-reporte-isa-v2`
+actualizados, conectar `guardar_lead_tibio` como tool nativo del agent
+node (nunca "Webhook Tool"), y pegar el parrafo nuevo de la seccion 6 en
+el prompt real — pasos exactos en `kapso-functions/README.md`.
+
 ## Bug de doble mensaje por turno en Isa v2 — RESUELTO, 2026-09-05
 
 Encontrado revisando conversaciones de prueba reales (Yonathan Murillo,
@@ -927,6 +1002,134 @@ un ajuste de contenido o una instruccion de texto — un LLM puede
 aunque el prompt diga lo contrario; los primeros dos intentos de Kapso
 lo confirmaron (cambiaron el sintoma, no la causa) hasta que se les
 pidio explicitamente una restriccion tecnica.
+
+**Nueva variante, 2026-09-17 — diagnosticada y parchada por Kapso, no
+estructural.** Auditando la conversacion real de Christian Duque
+(`whatsapp_conversation_id: d212927c-9160-43de-a600-4dffe633c6be`,
+`flow_execution_id: f4324ea8-6ab8-4f22-bb84-ce742caaab7f`, nodo
+`agent_1787008867123`) se encontro un mensaje saliente que es
+literalmente el texto interno `[espero la respuesta del usuario]`,
+mandado como si fuera una respuesta real al cliente:
+
+1. 14:18:12 — Christian responde la pregunta de `m2` ("Apto Tipo E: Area
+   Construida 43,04 m2 / Area Privada 37,78 m2").
+2. 14:18:27 — Isa manda `[espero la respuesta del usuario]` (asi, entre
+   corchetes) como mensaje de WhatsApp.
+3. 14:18:55 — Christian, confundido, repite exactamente el mismo dato
+   que ya habia dado (penso que no le habia llegado).
+4. 14:19:06 — Isa retoma normal: "perfecto, gracias por el dato
+   Christian... Cuantos banos tiene el apartamento?".
+
+**Diagnostico real de Kapso (revisando los `flow_event` de esa
+ejecucion), causa confirmada, no es una variante de `enter_waiting`:**
+1. `14:18:19 utc` — el agente guarda `m2 = 37.78` correctamente.
+2. `14:18:24 utc` — **`register_followup` falla con HTTP 400**
+   ("Error calling register_followup: Function execution failed with
+   status 400") — bug nuevo, sin relacion con `guardar_lead_db`/
+   `guardar_lead_tibio`, ver seguimiento abajo.
+3. `14:18:27 utc` — tras el error, el modelo genera el texto
+   `[espero la respuesta del usuario]` como si fuera una nota interna de
+   estado.
+4. Como el Workflow usa `"message_delivery_mode": "auto_send_assistant_text"`,
+   **cualquier texto que el modelo genere se manda automaticamente como
+   mensaje real de WhatsApp** — no hay filtro entre "pensamiento/nota
+   interna" y "mensaje al cliente". `enter_waiting` se ejecuto recien
+   *despues* de que el texto ya habia salido — no fue la causa.
+
+**Ajuste aplicado por Kapso (`lock_version: 159`), solo de prompt, no
+estructural:** se agrego una instruccion para que Isa nunca envie notas
+internas/marcadores de espera (`[espero la respuesta del usuario]`,
+"waiting for user" o variantes) y use `enter_waiting` sin texto
+adicional. `message_delivery_mode` se mantiene en
+`auto_send_assistant_text` (no se cambio), `send_notification_to_user`
+sigue sin reintroducirse, `complete_task` sigue retirado. **El propio
+Kapso advierte que esto reduce el riesgo pero no lo elimina** — con
+`auto_send_assistant_text`, el modelo todavia puede generar texto
+inesperado en el futuro (por ejemplo ante otro error de tool) y se
+enviaria igual. La proteccion estructural real seria pasar a
+`tool_only` (exigir `send_notification_to_user` para todo mensaje
+visible), pero eso requiere rediseñar y reverificar todos los turnos —
+Kapso no lo aplico todavia. **Pendiente:** validar con una ejecucion
+real donde falle una tool a proposito, confirmando que no se repite el
+texto interno y que la ejecucion queda en `waiting` normal.
+
+**Segunda ocurrencia confirmada, 2026-09-18 — texto distinto, mismo
+patron de fondo.** Conversacion de "Angie M" / Angie Murcia
+(`whatsapp_conversation_id: b95bbb38-66f9-41b7-865f-1e35a0b93d54`): a
+las 2026-09-18T03:38:45Z, justo despues de que Isa guardara
+correctamente el lead tibio (nombre, ciudad, tipo_proyecto=Remodelación
+Total, presupuesto=$35 — `guardar-lead-tibio-isa-v2` respondio 200 sin
+error), el siguiente mensaje saliente fue literalmente **`[Espera de
+respuesta]`** — otra variante del mismo texto de control interno
+filtrado hacia el cliente, con redaccion distinta a la de Christian
+(`[espero la respuesta del usuario]`). Como el fix que aplico Kapso
+bloquea frases especificas ("nunca envies variantes como... o
+equivalentes"), esta nueva redaccion demuestra que **el modelo puede
+seguir generando variantes no cubiertas explicitamente por el prompt** —
+confirma la propia advertencia de Kapso de que el fix de texto reduce el
+riesgo pero no lo elimina. A diferencia del caso de Christian, aqui el
+disparador NO fue un error de `register-followup` inmediato visible en
+el mismo instante (la llamada previa de `guardar-lead-tibio-isa-v2` fue
+exitosa) — pendiente confirmar si hubo un `register-followup` fallido
+justo despues de esa llamada, en la misma iteracion, que no se alcanzo a
+revisar.
+
+**Bug nuevo descubierto de rebote, RESUELTO por Kapso 2026-09-18 —
+`register-followup` fallaba el 100% de las veces desde su creacion.**
+Revisando 40 invocaciones reales (`function_invocation_event`,
+2026-09-17T02:38 a 2026-09-18T01:11, 5 conversaciones reales distintas:
+Christian Duque, Laura, Yonathan Murillo, Daco, "Amo Mi Family") **las 40
+fallaron** con `HTTP 400 {"ok": false, "error": "missing_required_fields"}`
+— incluyendo contactos con `phone_number`/`wa_id` reales, asi que **no
+era el mismo bug de telefono faltante** que se penso originalmente en el
+caso "Luz Adriana Pinto" de mas abajo (esa hipotesis quedo descartada,
+ver nota ahi).
+
+**Causa real, confirmada por Kapso:** el codigo de `register-followup`
+buscaba el id de ejecucion en `execution.system.tracking_id` o
+`execution.system.execution_id` — campos que el runtime real de Kapso
+**nunca envia**. El campo real es `execution.system.flow_execution_id`,
+presente en el 100% de las invocaciones revisadas. `phone_number`,
+`conversation_id` y `pending_action` siempre llegaron bien — el defecto
+era unicamente el nombre del campo del id de ejecucion. Existia desde
+que se creo la funcion (6 de septiembre).
+
+**Independiente del bug de infraestructura de `process-followups`
+(404, ticket de soporte de Railway abierto, ver mas abajo)** — son 2
+fallas en cascada: aunque el 404 de Railway se resuelva, sin este fix
+`process-followups` no habria tenido ninguna fila que procesar, porque
+`register-followup` nunca llegaba a crearla.
+
+**Fix aplicado por Kapso:** `register-followup` ahora resuelve el id con
+fallback (`input.execution_id || system.flow_execution_id ||
+system.workflow_execution_id || system.execution_id ||
+system.tracking_id`) y devuelve un diagnostico explicito de que campo
+falta si vuelve a fallar. Deploy iniciado, funcion:
+`6ec5a5e2-ea5b-404d-af06-cf8b43865b7f`.
+
+**Pendiente de verificar con una invocacion real posterior al deploy:**
+1. `register-followup` responde `ok: true`.
+2. se crea una fila `pending` en `conversation_followups`.
+3. `next_due_at` queda programado.
+4. el scheduler de Railway puede encontrarla (una vez tambien se resuelva
+   el 404 de `process-followups`, ver seccion aparte mas abajo).
+
+**Alerta 2026-09-18 14:31 UTC — sigue fallando despues del deploy
+reportado por Kapso.** Revisando `function_invocation_event` en vivo se
+encontro una invocacion de `register-followup` a las 14:31:15 UTC (conv.
+de Yonathan Murillo, `input: {"pending_action": "indicar correo"}`) que
+**tambien devolvio 400** — posterior al mensaje de Kapso confirmando el
+fix y el deploy. No se confirmo el error exacto de esta invocacion en
+particular (no se reviso el body de respuesta), asi que no se sabe si es
+el mismo `missing_required_fields` de siempre o algo nuevo — pendiente
+de confirmar en el chequeo programado. Si sigue siendo el mismo error,
+el fix de Kapso no tomo efecto todavia (deploy en curso, cache, o el fix
+no cubrio todos los casos).
+
+Explica tambien el caso ya anotado de `register_followup` llamado 8
+veces en una sola conversacion (`bff33b1b-0751-49ce-b96c-17e106e24738`) —
+cada intento fallaba y el agente volvia a intentar en cada pregunta
+pendiente nueva, sin que ninguno llegara a registrarse.
 
 **Ajustes de tono relacionados, mismo dia** (`docs/isa-v2-system-prompt.md`):
 - **Mensaje de bienvenida (seccion 2):** ahora incluye un gancho corto
@@ -1959,6 +2162,17 @@ CADA llamada** para esta conversacion:
   "missing_required_fields"}` en las 8 llamadas de esta conversacion —
   el seguimiento automatico por inactividad tampoco se registra nunca
   para este tipo de lead.
+
+  **Correccion 2026-09-18:** en su momento se asumio que este error de
+  `register-followup` compartia causa con el de `guardar-lead-isa-v2`
+  (telefono faltante). **Era una hipotesis equivocada** — se confirmo
+  despues (ver la seccion de auditoria de logs mas arriba, "Bug nuevo
+  descubierto de rebote") que `register-followup` fallaba para
+  *cualquier* invocacion, con o sin telefono, por un bug de nombre de
+  campo (`tracking_id`/`execution_id` en vez de `flow_execution_id`) —
+  ya corregido por Kapso. El bug de `guardar-lead-isa-v2` si era
+  especificamente de telefono faltante y se arreglo aparte (ver seccion
+  de leads_isa_v2/username).
 
 Ninguna de las 2 fallas es visible para la clienta — Isa sigue
 respondiendo normal (genero el estimado, mando el detalle del paquete),
