@@ -3,6 +3,36 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**🟡 LAS 4 FUNCIONES DE KAPSO EN DEPLOYMENT, 2026-09-25 — falta la
+`function_url` de cada una para configurar Railway.** Kapso creó las 4
+funciones del contrato y arrancó el deploy, sin tocar el Workflow ni
+activar ningún tick:
+
+- `followups-list` — `50d78a89-fa7b-4d17-aad6-da27425f52dc`
+- `followups-claim` — `a8ccf839-7fe5-4c3b-bc51-db160e955d7d`
+- `followups-validate` — `e4ab06a1-e89c-471e-baa2-9ad4d1470ce9`
+- `followups-resolve` — `7f4336a9-361e-4798-b083-3581592f432e`
+
+Todas requieren header `x-api-key: <FOLLOWUPS_PROCESS_TOKEN>` +
+`content-type: application/json`. `followups-validate` usa
+internamente `KAPSO_API_KEY` para consultar mensajes inbound y
+conversaciones activas. Lógica confirmada implementada de su lado tal
+como se pidió (list = solo vencidos; claim = update condicional
+idempotente; validate = mensaje nuevo/agendamiento/no viable/conversación
+activa; resolve = siguiente intento, cierre o fallo) — **pero sin
+verificación HTTP de extremo a extremo todavía**, porque el deployment
+no había emitido las URLs de invoke al momento de este reporte.
+
+**Siguiente paso, sin código nuevo de nuestro lado:** en cuanto Kapso
+confirme `deployed` y entregue las 4 `function_url`, van directo a
+Railway como `FOLLOWUPS_LIST_URL` / `FOLLOWUPS_CLAIM_URL` /
+`FOLLOWUPS_VALIDATE_URL` / `FOLLOWUPS_RESOLVE_URL` (`.env.example` ya las
+documenta), más `FOLLOWUPS_PROCESS_TOKEN` con el mismo valor configurado
+en las 4 funciones. El procesador (`src/followups/processor.ts`, ya
+escrito y pusheado) empieza a correr solo con el tick de cada minuto que
+ya está enganchado en `tools-server.ts` — no hace falta ningún deploy de
+código adicional, solo las variables de entorno.
+
 **🟢 PROCESADOR DE RAILWAY ESCRITO, 2026-09-25 — falta que Kapso construya
 4 endpoints antes de que tenga efecto.** Implementado en
 `src/followups/` (`cadence.ts`, `templates.ts`, `processor.ts`) y
