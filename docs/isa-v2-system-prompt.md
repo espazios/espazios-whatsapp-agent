@@ -3,6 +3,73 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**🟢 CAMBIOS DE KAPSO APLICADOS, 2026-09-25 — lado de Kapso listo; falta
+implementar el procesador en Railway.** Tras el plan de los 3 estados
+terminales (no viable / agendado / pendiente de seguimiento) y la
+cadencia de push acordada, Kapso aplicó lo siguiente **sin tocar Railway
+ni activar ningún procesador**:
+
+1. **Tabla nueva `leads_no_viables`** — `phone_number`, `conversation_id`,
+   `execution_id`, `reason`, `stopped_at`, `source`, `metadata_json` +
+   timestamps. Vacía, lista para que el Workflow la use.
+2. **Las 39 filas `pending` viejas se marcaron `expired`** — se eligió la
+   opción A (limpiar todo, no revisar una por una). No quedan filas
+   `pending` activas de la lógica anterior.
+3. **`register-followup` corregido** (función
+   [`6ec5a5e2-ea5b-404d-af06-cf8b43865b7f`](https://app.kapso.ai/functions/6ec5a5e2-ea5b-404d-af06-cf8b43865b7f/edit)):
+   `action: "cancel"` ahora cancela filas existentes en vez de crear una
+   `pending` nueva (el bug que encontramos); cancela por teléfono antes
+   de registrar una cadena nueva (máximo una cadena activa por
+   contacto); exige `phone_number`/`conversation_id`/`execution_id`/
+   `pending_action`; guarda `contact_name` y `lead_state:
+   "pending_followup"`; ya no intenta reanudar ejecuciones.
+4. **Verificado:** `leads_no_viables` creada (0 filas), `conversation_followups`
+   sin `pending` activos, `leads_tibios_isa_v2`/`leads_isa_v2` intactas
+   — no se tocó ningún lead existente.
+
+**Especificación completa entregada para implementar en Railway
+(`tools-server.ts`)** — reemplaza a `process-followups`/`process-followups-v2`,
+que siguen desplegadas pero sin usarse:
+
+- Query de lectura: `SELECT * FROM conversation_followups WHERE status =
+  'pending' AND next_due_at <= now ORDER BY next_due_at ASC LIMIT ?`.
+- Orden de validación antes de cada push: (1) mensaje entrante nuevo
+  desde `created_at`/último evento → cancelar; (2) `leads_isa_v2` tiene
+  `tipo_agendamiento` válido → cancelar; (3) existe en `leads_no_viables`
+  → cancelar; (4) el `conversation_id` guardado ya no es el activo de ese
+  teléfono → no reanudar, cancelar o migrar según política de Railway.
+- Reclamo idempotente antes de procesar: `UPDATE conversation_followups
+  SET status = 'processing', updated_at = ? WHERE id = ? AND status =
+  'pending' AND next_due_at <= ?` — solo seguir si afectó una fila.
+- **Cadencia confirmada** (`attempt` arranca en 0): intento 1 =
+  `created_at + 10 min`; intento 2 = `last_sent_at + 2h`; intento 3 = día
+  siguiente 18:00; intento 4 (último) = tercer día 18:00; después de eso
+  `status = 'closed'`. Ventana hábil lunes-viernes 07:00–19:00
+  `America/Bogota`; fuera de ventana se recorre al inicio del siguiente
+  horario hábil (sábado/domingo → lunes 7am; antes de 7am → mismo día
+  7am; después de 7pm → siguiente día hábil 7am).
+- **Mensaje:** Railway arma el texto desde plantillas fijas por
+  `pending_action` + `attempt` + nombre — **nunca llama al modelo**.
+  Antes de enviar: texto no vacío, pertenece a una plantilla conocida, no
+  contiene placeholders internos ni respuesta cruda de modelo. Si falla,
+  no enviar y registrar el error internamente.
+
+**Pendiente — todavía no implementado, ninguna parte activa en
+producción:**
+- Las plantillas determinísticas no existen todavía como artefacto
+  ejecutable en ningún lado.
+- `non_viable`/`scheduled` no son todavía una columna/tabla de estado
+  centralizada — hoy se infieren consultando `leads_no_viables` y
+  `leads_isa_v2` por separado.
+- El agente del Workflow todavía no llama a ninguna función para
+  insertar en `leads_no_viables` cuando cierra por no viable — hay que
+  agregarla.
+- La precarga automática de `leads_tibios_isa_v2`/`leads_isa_v2` al
+  iniciar una ejecución nueva (para no repetir datos) sigue sin
+  implementarse.
+- El tick/procesador en Railway (`tools-server.ts`) — la especificación
+  de arriba está lista, falta escribir el código.
+
 **⚠️ ROLLBACK MANUAL DEL USUARIO, 2026-09-25 — el Workflow se restauró a
 la `lock_version: 93`, dejando atrás la `98` (la versión "después de
 todos los ajustes").** Decisión del usuario, tras el patrón reproducible
