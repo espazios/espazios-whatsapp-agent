@@ -3,6 +3,30 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**⚠️ ROLLBACK MANUAL DEL USUARIO, 2026-09-25 — el Workflow se restauró a
+la `lock_version: 93`, dejando atrás la `98` (la versión "después de
+todos los ajustes").** Decisión del usuario, tras el patrón reproducible
+de `guardar_lead_db → complete_task` sin texto justo en la confirmación
+de tipo de reunión (ver más abajo) — razonamiento: "en la versión
+anterior donde había follow-ups, al menos servía para agendar".
+
+**Riesgo importante que queda pendiente de verificar, no confirmado
+todavía:** un restore de versión típicamente revierte el grafo completo,
+no solo una parte. Si la `98` es posterior a los dos retiros de
+`complete_task` de `enabled_default_tools` que Kapso aplicó hoy mismo
+(documentados más abajo) y a que se pegó la regla de texto nueva de la
+sección 11 ("nunca `register-followup`/`enter_waiting` sin texto
+visible"), **volver a la `93` podría estar reintroduciendo `complete_task`
+como herramienta disponible y quitando esa regla de texto** — exactamente
+los dos parches que se armaron hoy contra este mismo bug. También se
+perderían los demás ajustes documentados entre la `93` y la `98` (manejo
+de `banos` en la banda 31-44, orden de las 2 imágenes del estimado,
+`guardar_lead_db` vs `guardar_lead`, ajustes de tono, etc.) si esos
+cambios quedaron dentro de ese rango de versiones. **Pendiente que el
+usuario confirme, revisando el prompt real pegado y la lista de tools del
+nodo tras el rollback, si `complete_task` volvió a aparecer y si la regla
+de la sección 11 sigue presente.**
+
 **🔴 LIMITACIÓN DE PLATAFORMA CONFIRMADA, 2026-09-25 — ninguna ejecución
 se reanuda una vez que cambia la conversación; no hay forma de controlar
 el cierre por timeout desde el Workflow.** Pregunta enviada a Kapso tras
