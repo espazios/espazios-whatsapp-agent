@@ -3,6 +3,38 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**🔴 REGRESIÓN EN VIVO, 2026-09-25 — `complete_task` volvió a estar
+disponible, enviado a Kapso, pendiente confirmación.** El 5 de septiembre
+Kapso confirmó haber retirado `complete_task` de `enabled_default_tools`
+del Workflow (ver más abajo, "RESUELTO a nivel de plataforma, 2026-09-05
+noche") después de que esa herramienta terminara ejecuciones completas en
+vez de solo el turno, perdiendo todo el contexto. Hoy volvió a pasar
+exactamente igual.
+
+Detectado en vivo en la conversación real de Yonathan Murillo
+(`whatsapp_conversation_id 8731dfef-a042-4fe1-8b37-adf684865e7f`,
+`flow_execution_id f566ceb7-35c9-4c56-a22d-b119d57d14f8`, `step_id`
+`e52513f8-f528-45ac-93ba-8bf892b066a0` / `step_identifier
+agent_1787008867123`). El cliente ya había dado todos sus datos de
+calificación y, al preguntarle si prefería llamada o reunión, respondió
+"Virtual" — el paso justo antes de compartir el link de Google Calendar
+de la sección 9. En ese turno: `guardar_lead_db` respondió OK, y
+**`complete_task`** se llamó justo después, terminando la ejecución
+completa (`agent_task_completed`, `execution_ended` con `reason:
+reached_terminal_node`) sin compartir el link ni ningún mensaje de texto.
+El cliente pidió agendar y no recibió nada — ni el link, ni confirmación,
+ni error. Si escribe de nuevo, arranca una ejecución nueva desde cero,
+perdiendo todo lo ya dado (mismo efecto que el bug original de
+2026-09-05).
+
+La regla de texto de la sección 15 ("nunca uses `complete_task`... después
+de confirmar un agendamiento") sigue verbatim en este prompt — el modelo
+la ignoró, lo que confirma que no es un problema de redacción: la
+herramienta volvió a estar disponible para que el modelo la llame. Se le
+pidió a Kapso que revise `enabled_default_tools` del Workflow, confirme
+por qué volvió (redeploy, restauración de versión, u otro cambio de
+config) y la retire de nuevo. **Pendiente respuesta de Kapso.**
+
 **🔴 BUG NUEVO EN VIVO, 2026-09-25 — confirmado por Kapso, sin fix de
 plataforma disponible todavía.** Misma familia que el bug de `complete_task` (ver más
 abajo, "RESUELTO a nivel de plataforma, 2026-09-05 noche"), pero en otro
