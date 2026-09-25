@@ -58,10 +58,29 @@ vía el seguimiento automático, y `register-followup`/`process-followups`
 sigue fallando con 500/404 varias veces por hora en producción (ver
 arriba), la prioridad inmediata pasa a ser esa reliability — es la única
 red de seguridad real que le queda a un cliente que se quedó así de
-colgado. **Pendiente:** decidir si se agrega igual una regla de texto en
-la sección 11 como mitigación parcial (mismo patrón que se usó con
-`complete_task` mientras se esperaba el fix de plataforma), y priorizar
-con Kapso el ticket abierto de `process-followups`.
+colgado.
+
+**Plan de fondo decidido (2026-09-25), pendiente de madurar antes de
+construir:** en vez de esperar a que Kapso resuelva `process-followups`
+(bug de infra abierto hace casi 3 semanas, ver más abajo, sin ETA), mover
+el procesamiento del seguimiento fuera de Kapso — `register-followup`
+pasaría a escribir a un store propio en Railway (el mismo servicio
+`tools-server.ts` que ya corre 24/7 y cuyo scheduler sí funciona), y ese
+scheduler cubre con la misma lógica tanto la inactividad clásica como
+este bug nuevo (detectando conversación en `waiting` con último mensaje
+inbound sin outbound después), mandando el mensaje directo por la API de
+WhatsApp de Kapso sin depender de que el Workflow resuma. El agente no se
+entera del cambio — sigue llamando `register-followup` con el mismo
+schema. **No se construye todavía**, queda pendiente de maduración.
+
+**Mitigación de texto aplicada ya en este archivo (2026-09-25), pendiente
+de pegar en Kapso:** se agregó al inicio de la sección 11 una prohibición
+explícita — "nunca llames `register-followup` ni `enter_waiting` en un
+turno donde no hayas enviado ya un mensaje de texto visible al
+cliente" — como mitigación barata e independiente del plan de fondo.
+Mismo patrón usado con `complete_task`: reduce frecuencia, no es garantía
+(ya lo advirtió Kapso arriba). **Falta que el usuario la pegue en
+Kapso.**
 
 **Ya pegado en Kapso (confirmado 2026-09-17):** el párrafo de
 `guardar_lead_tibio` en la sección 6 ya está en producción — el usuario
@@ -1123,6 +1142,14 @@ El objetivo de este seguimiento es retomar cualquier punto que bloquee
 llegar al agendamiento. El tiempo y el número de intentos los controla
 el scheduler; nunca los decidas tú ni los presentes como una decisión
 opcional.
+
+**Nunca llames `register-followup` ni `enter_waiting` en un turno donde
+no hayas enviado ya un mensaje de texto visible al cliente.** Si tienes
+una pregunta pendiente, escríbela primero como mensaje; solo después de
+haberla escrito, llama `register-followup` y luego `enter_waiting`. Un
+turno que termina en `register-followup`/`enter_waiting` sin ningún
+mensaje de texto deja al cliente sin respuesta — eso nunca es aceptable,
+sin importar qué tan bien se haya registrado el seguimiento.
 
 Después de enviar una pregunta o acción pendiente que bloquee avanzar al
 agendamiento, llama inmediatamente a la herramienta de función
