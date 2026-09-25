@@ -3,6 +3,38 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**🔴 BUG NUEVO EN VIVO, 2026-09-25 — enviado a Kapso, pendiente
+confirmación.** Misma familia que el bug de `complete_task` (ver más
+abajo, "RESUELTO a nivel de plataforma, 2026-09-05 noche"), pero en otro
+punto del flujo: el agente puede terminar un turno encadenando solo tool
+calls, sin generar ningún mensaje de texto de salida.
+
+Detectado en vivo revisando la conversación real de Yonathan Murillo
+(`whatsapp_conversation_id e8d8f270-2f01-4f49-ac12-d03bc8e41606`,
+`flow_execution_id f6b05d9a-26ce-4561-a7da-6b9fef7ccf5e`, `flow_id`
+`9144e40d-cd55-4d3b-a2f2-4a019db39fa6`, `step_id`
+`e52513f8-f528-45ac-93ba-8bf892b066a0` /
+`step_identifier agent_1787008867123`). El cliente respondió "42" a la
+pregunta de m² (2026-09-24 21:53:37 hora local); la ejecución resumió,
+`save_variable` guardó `m2` bien, `register_followup` respondió OK,
+`enter_waiting` se llamó justo después — y en ningún punto de ese turno
+el agente produjo un mensaje de texto. El cliente quedó sin ninguna
+respuesta (ni la pregunta de baños que le tocaba por caer en la banda
+ambigua 31-44 de `pricing.ts`), con el followup registrado pero sin
+garantía de que se dispare: `register-followup`/`process-followups` ya
+viene fallando con 500/404 en producción varias veces por hora (ver
+`CLAUDE.md` y el propio historial de commits de este repo).
+
+La sección 11 de este prompt ya dice "después de **enviar** una
+pregunta, llama `register-followup`" — o sea ya asume que hubo texto
+antes — pero no hay ningún límite duro de plataforma (como sí existe hoy
+para `complete_task`, retirado de `enabled_default_tools`) que impida
+llamar `register-followup`/`enter_waiting` en un turno que no generó
+texto. Se le pidió a Kapso que agregue esa restricción a nivel de
+Workflow, no un parche de prompt — el precedente de `complete_task` ya
+mostró que una regla de texto sola no bastó. **Pendiente respuesta de
+Kapso confirmando la causa y el fix.**
+
 **Ya pegado en Kapso (confirmado 2026-09-17):** el párrafo de
 `guardar_lead_tibio` en la sección 6 ya está en producción — el usuario
 pegó el prompt real completo para verificar, y este archivo ya se
