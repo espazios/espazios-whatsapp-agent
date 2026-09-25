@@ -3,6 +3,51 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**🟢 PROCESADOR DE RAILWAY ESCRITO, 2026-09-25 — falta que Kapso construya
+4 endpoints antes de que tenga efecto.** Implementado en
+`src/followups/` (`cadence.ts`, `templates.ts`, `processor.ts`) y
+enganchado en `src/tools-server.ts` reemplazando el tick viejo que le
+pegaba a `process-followups`. Verificado: `npm run typecheck` limpio, y
+la cadencia probada a mano contra el ejemplo acordado (pendiente martes
+3:00pm → intentos martes 3:10pm / martes 5:10pm / miércoles 6pm / viernes
+6pm) y contra los bordes de la ventana hábil (fin de semana, antes de las
+7am, después de las 7pm, viernes tarde → lunes) — todos correctos.
+
+**Nada de esto está activo en producción todavía** — el procesador se
+queda sin efecto mientras no existan las 4 variables de entorno que
+apuntan a los endpoints nuevos (documentadas en `.env.example`). Faltan
+por construir del lado de Kapso, con este contrato exacto (ver
+`src/followups/processor.ts` para el detalle completo):
+
+- **`FOLLOWUPS_LIST_URL`** — `POST {"limit": 50}` → `{"followups": [...]}`.
+  Es literalmente la query que ya habían dado: `SELECT * FROM
+  conversation_followups WHERE status = 'pending' AND next_due_at <= now
+  ORDER BY next_due_at ASC LIMIT ?`. Sin validación de negocio, solo trae
+  lo vencido. Cada fila necesita: `id, conversation_id, phone_number,
+  contact_name, pending_action, attempt, created_at, last_sent_at`.
+- **`FOLLOWUPS_CLAIM_URL`** — `POST {"id": "..."}` → `{"claimed": bool}`.
+  El `UPDATE ... SET status='processing' ... WHERE id = ? AND status =
+  'pending' AND next_due_at <= ?` condicional que ya habían especificado.
+- **`FOLLOWUPS_VALIDATE_URL`** — `POST {"id", "phone_number",
+  "conversation_id"}` → `{"ok": true}` o `{"ok": false, "reason": "..."}`.
+  Corre las 4 validaciones ya acordadas (mensaje nuevo / agendamiento
+  confirmado / no viable / conversación activa) contra su D1, y si alguna
+  falla, cancela la cadena del lado de Kapso — Railway solo necesita
+  saber si sigue o no.
+- **`FOLLOWUPS_RESOLVE_URL`** — `POST {"id", "outcome": "sent" |
+  "send_failed", "next_attempt"?, "next_due_at"?, "close"?}`. Después de
+  que Railway manda (o falla al mandar) el mensaje, esto le dice a Kapso
+  cómo actualizar la fila — avanzar el intento con el `next_due_at` que
+  Railway ya calculó, o cerrar la cadena si no quedan intentos.
+
+Diseño clave: Railway calcula la cadencia y arma el texto (plantillas
+fijas en `templates.ts`, nunca el modelo — con `isSafeToSend` como red de
+seguridad final contra placeholders), y envía directo con
+`kapso-client.ts` (`sendText`, ya existente, solo necesita
+`KAPSO_API_KEY`/`KAPSO_PHONE_NUMBER_ID` configuradas). Kapso solo guarda
+estado — nunca vuelve a intentar reanudar una ejecución vieja, como ya se
+había acordado.
+
 **🟢 CAMBIOS DE KAPSO APLICADOS, 2026-09-25 — lado de Kapso listo; falta
 implementar el procesador en Railway.** Tras el plan de los 3 estados
 terminales (no viable / agendado / pendiente de seguimiento) y la

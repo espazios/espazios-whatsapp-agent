@@ -11,6 +11,7 @@ import {
 } from "./tools/estimado-ilustrativo/pricing.js";
 import { renderTarjeta, renderDetalle, type TarjetaPaqueteInput } from "./tools/estimado-ilustrativo/render.js";
 import { leerContenidoPaquete } from "./tools/estimado-ilustrativo/contenido.js";
+import { runFollowupsTick } from "./followups/processor.js";
 
 /**
  * Servidor de HERRAMIENTAS — no recibe conversaciones de WhatsApp.
@@ -235,56 +236,27 @@ app.get<{ Params: { id: string } }>("/tools/estimados/:id", async (req, reply) =
   return reply.send(entry.bytes);
 });
 
-// --- Scheduler de seguimientos por inactividad (2026-09-06) ---
-// Kapso no tiene forma de correr un Cron/Queue propio para disparar los
-// seguimientos de 10min/4h-habiles/8h-habiles (ver CLAUDE.md, "Seguimiento
-// automatico por inactividad") — este servidor, que ya corre 24/7 en
-// Railway, hace de "scheduler externo": le pega cada minuto a la Kapso
-// Function `process-followups`, que hace todo el trabajo real (buscar
-// cadenas vencidas en D1, validar, reanudar la ejecucion en `waiting` via
-// el endpoint de resume de Kapso, avanzar el intento o cerrar la cadena).
-// Este servidor no toca la base de datos de Kapso ni sabe nada de la
-// logica de negocio de los seguimientos — solo dispara el tick.
-const FOLLOWUPS_PROCESS_URL = process.env.FOLLOWUPS_PROCESS_URL;
-const FOLLOWUPS_PROCESS_TOKEN = process.env.FOLLOWUPS_PROCESS_TOKEN;
+// --- Scheduler de seguimientos por inactividad (2026-09-25, v2) ---
+// Reemplaza al tick viejo que le pegaba a la Kapso Function
+// `process-followups` (la que dio 404 sin resolver durante semanas,
+// documentado en CLAUDE.md y docs/isa-v2-system-prompt.md). Ahora la
+// logica de negocio (validar, calcular la cadencia, armar el mensaje)
+// vive en `src/followups/` — este servidor ya corre 24/7 en Railway, y
+// eso fue justo el problema que resolvio bien desde el principio, asi que
+// el "cerebro" del seguimiento se muda para aca. Ver
+// `src/followups/processor.ts` para el contrato HTTP que todavia le
+// falta construir a Kapso (`FOLLOWUPS_LIST_URL`/`_CLAIM_URL`/
+// `_VALIDATE_URL`/`_RESOLVE_URL`) antes de que este tick tenga efecto.
 const FOLLOWUPS_TICK_MS = 60 * 1000; // 1 minuto
 
-if (FOLLOWUPS_PROCESS_URL && FOLLOWUPS_PROCESS_TOKEN) {
-  const tick = async () => {
-    try {
-      const res = await fetch(FOLLOWUPS_PROCESS_URL, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          // Kapso confirmo explicitamente: x-api-key, no "authorization".
-          "x-api-key": FOLLOWUPS_PROCESS_TOKEN,
-        },
-        body: JSON.stringify({
-          limit: 50,
-          source: "railway_scheduler",
-          scheduler_run_id: new Date().toISOString(),
-        }),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        app.log.error({ status: res.status, body: text }, "process-followups respondio con error");
-        return;
-      }
-      const data = (await res.json()) as { processed?: unknown[]; skipped?: unknown[] };
-      if ((data.processed?.length ?? 0) > 0 || (data.skipped?.length ?? 0) > 0) {
-        app.log.info({ processed: data.processed, skipped: data.skipped }, "process-followups tick");
-      }
-    } catch (err) {
-      app.log.error({ err }, "Fallo llamando a process-followups");
-    }
-  };
-  setInterval(tick, FOLLOWUPS_TICK_MS).unref();
-  app.log.info("Scheduler de seguimientos activo (process-followups cada 1 min)");
-} else {
-  app.log.warn(
-    "FOLLOWUPS_PROCESS_URL / FOLLOWUPS_PROCESS_TOKEN no configuradas — scheduler de seguimientos deshabilitado."
-  );
-}
+setInterval(() => {
+  runFollowupsTick({
+    error: (o, msg) => app.log.error(o, msg),
+    info: (o, msg) => app.log.info(o, msg),
+    warn: (msg) => app.log.warn(msg),
+  });
+}, FOLLOWUPS_TICK_MS).unref();
+app.log.info("Scheduler de seguimientos v2 activo (procesa en Railway, cada 1 min)");
 
 const port = Number(process.env.PORT ?? 3000);
 app.listen({ port, host: "0.0.0.0" }).catch((err) => {
