@@ -3,8 +3,8 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
-**🔴 BUG NUEVO EN VIVO, 2026-09-25 — enviado a Kapso, pendiente
-confirmación.** Misma familia que el bug de `complete_task` (ver más
+**🔴 BUG NUEVO EN VIVO, 2026-09-25 — confirmado por Kapso, sin fix de
+plataforma disponible todavía.** Misma familia que el bug de `complete_task` (ver más
 abajo, "RESUELTO a nivel de plataforma, 2026-09-05 noche"), pero en otro
 punto del flujo: el agente puede terminar un turno encadenando solo tool
 calls, sin generar ningún mensaje de texto de salida.
@@ -32,8 +32,36 @@ para `complete_task`, retirado de `enabled_default_tools`) que impida
 llamar `register-followup`/`enter_waiting` en un turno que no generó
 texto. Se le pidió a Kapso que agregue esa restricción a nivel de
 Workflow, no un parche de prompt — el precedente de `complete_task` ya
-mostró que una regla de texto sola no bastó. **Pendiente respuesta de
-Kapso confirmando la causa y el fix.**
+mostró que una regla de texto sola no bastó.
+
+**Respuesta de Kapso (mismo día):** confirmó la causa exacta revisando
+la propia ejecución (`user_input_received → save_variable → register_followup
+ok → enter_waiting`, sin `agent_message_sent` en medio, `agent_last_message`
+quedó literalmente en `[ENTER_WAITING]`) y aclaró una diferencia clave con
+`complete_task`: **hoy no existe, del lado de la plataforma, un mecanismo
+equivalente a "retirar de `enabled_default_tools`" para este caso.**
+`message_delivery_mode: auto_send_assistant_text` solo controla qué pasa
+con texto que el modelo ya generó — no lo obliga a generar texto. No hay
+forma de exigir `agent_message_sent` antes de una function tool, bloquear
+`enter_waiting` sin texto previo, ni declarar orden/dependencias entre
+tools a nivel del nodo agente con la configuración actual. Kapso no
+declara el bug resuelto y deja explícito que la solución real requiere
+una capacidad de plataforma nueva (alguna de: `enter_waiting` rechazando
+la llamada sin mensaje visible en la iteración, `register-followup`
+consultando un indicador de salida visible, una política de tools que
+exija `message_sent` antes de `enter_waiting`, o una tool de envío
+explícita como único mecanismo de salida con `tool_only`). Un ajuste de
+prompt puede bajar la frecuencia pero no da la garantía que se pidió.
+
+**Mitigación mientras tanto:** como este bug solo se puede recuperar hoy
+vía el seguimiento automático, y `register-followup`/`process-followups`
+sigue fallando con 500/404 varias veces por hora en producción (ver
+arriba), la prioridad inmediata pasa a ser esa reliability — es la única
+red de seguridad real que le queda a un cliente que se quedó así de
+colgado. **Pendiente:** decidir si se agrega igual una regla de texto en
+la sección 11 como mitigación parcial (mismo patrón que se usó con
+`complete_task` mientras se esperaba el fix de plataforma), y priorizar
+con Kapso el ticket abierto de `process-followups`.
 
 **Ya pegado en Kapso (confirmado 2026-09-17):** el párrafo de
 `guardar_lead_tibio` en la sección 6 ya está en producción — el usuario
