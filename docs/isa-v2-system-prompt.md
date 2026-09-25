@@ -206,8 +206,23 @@ explícita — "nunca llames `register-followup` ni `enter_waiting` en un
 turno donde no hayas enviado ya un mensaje de texto visible al
 cliente" — como mitigación barata e independiente del plan de fondo.
 Mismo patrón usado con `complete_task`: reduce frecuencia, no es garantía
-(ya lo advirtió Kapso arriba). **Falta que el usuario la pegue en
-Kapso.**
+(ya lo advirtió Kapso arriba).
+
+**Confirmado por el usuario (2026-09-25, mismo día): la regla YA estaba
+pegada en Kapso**, verbatim, antes de las siguientes 3 recurrencias del
+bug ese mismo día (conversaciones `8731dfef...` con `complete_task`,
+`748e3343...` con el placeholder de debug, y `f086d81c...` con otro
+turno silencioso en la elección de llamada/virtual/presencial —
+respuesta "2", sin ningún mensaje después). O sea: **la mitigación de
+texto está en producción y no bajó la frecuencia de forma perceptible**
+— Yonathan chocó con alguna variante de este bug 4 veces en menos de 2
+horas, casi siempre justo en el paso de agendamiento (elección de
+llamada/reunión, o el "?" de confusión inmediatamente después). Esto
+confirma en la práctica, no solo en teoría, la advertencia que ya había
+dado Kapso: un ajuste de prompt no es una solución real para este bug.
+Refuerza que la prioridad debe ser el watchdog externo (detectar y
+rescatar conversaciones colgadas) en vez de seguir esperando un fix de
+plataforma o confiar en más texto de prompt.
 
 **Ya pegado en Kapso (confirmado 2026-09-17):** el párrafo de
 `guardar_lead_tibio` en la sección 6 ya está en producción — el usuario
