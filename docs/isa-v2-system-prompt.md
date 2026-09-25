@@ -3,6 +3,68 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**🔴 BUG NUEVO EN VIVO, 2026-09-25 — placeholder interno de debug se envió
+como mensaje real al cliente; requiere fix de runtime que Kapso no puede
+aplicar desde el asistente de IA.** Misma familia que el bug de
+`register-followup`/`enter_waiting` sin texto (ver más abajo), pero con un
+efecto distinto y más grave: en vez de silencio, el runtime le mandó al
+cliente un artefacto de implementación interna.
+
+Detectado en la conversación real de Yonathan Murillo
+(`whatsapp_conversation_id 748e3343-b4ac-4fc2-8727-69f4c723ba58`,
+`flow_execution_id 1fbca12f-176f-4397-a52e-f1e9ab45892c`, `whatsapp_message_id`
+`wamid.HBgMNTczMDI0MDU4MzAyFQIAERgSQkZGNUMxMENFQjQwQjU4NTNBAA==`,
+2026-09-24 23:49:51 hora local). El cliente confirmó "Bogotá" como
+ciudad; en el turno siguiente, en vez de la pregunta de tipo de proyecto,
+le llegó literalmente:
+
+> "(Note: Only the final assistant message is shown. Tools were used.)"
+
+**Diagnóstico de Kapso:** confirmaron que el mensaje sí salió de su
+runtime (no de WhatsApp ni de un webhook externo). Secuencia exacta: el
+modelo consumió tokens pero no produjo texto real → el runtime generó un
+evento `agent_message_sent` con ese placeholder → se envió por WhatsApp
+con el wamid de arriba → la ejecución quedó en `waiting` → el cliente
+respondió "?" → el turno siguiente sí produjo la pregunta correcta. Mismo
+patrón de fondo que el bug de `register-followup`/`enter_waiting` (una
+iteración usa herramientas y no cierra con un mensaje real), pero el
+manejo posterior es distinto y peor: en vez de quedar en silencio, el
+runtime convirtió un placeholder interno en texto visible.
+
+**Hallazgo adicional, más preocupante:** la misma ejecución volvió a
+registrar `complete_task` en su `agent_tools_configured`, pese a que la
+lectura del grafo hecha *después* del fix (documentado arriba) ya no lo
+mostraba. Kapso lo interpretó como una **divergencia entre la
+configuración guardada del grafo y las herramientas realmente inyectadas
+en runtime** — no es solo el bug del placeholder, hay una discrepancia de
+fondo entre lo que el canvas dice y lo que el runtime ejecuta. Volvieron
+a verificar y confirmaron que `complete_task` ya no está en
+`enabled_default_tools`, `enter_waiting` sigue habilitada y
+`message_delivery_mode` sigue en `auto_send_assistant_text` — pero no
+hay garantía de que esta divergencia no vuelva a producir el mismo efecto
+de nuevo.
+
+**Límite explícito de Kapso — esto no lo pueden arreglar desde el
+asistente de IA:** el filtro que evitaría enviar ese placeholder "no
+existe como configuración del workflow" — se genera en el runtime antes
+de `agent_message_sent`, y el asistente de IA de Kapso solo puede
+modificar el workflow, sus nodos, prompts, herramientas y funciones del
+proyecto, **no el runtime interno ni el dispatcher** que convierte el
+placeholder en mensaje enviado. Dijeron explícitamente: *"el fix del
+runtime debe implementarlo el equipo de plataforma"* — hace falta
+escalar esto por un canal de soporte humano de Kapso, no alcanza con
+seguir iterando con su asistente de IA. El fix necesario, tal como ellos
+mismos lo describen:
+1. Nunca enviar al canal un resultado vacío o placeholder interno.
+2. Reintentar la generación del mensaje final, o continuar la iteración.
+3. Si no es posible generar texto, usar un fallback neutro en español.
+4. Registrar el placeholder solo en eventos internos, nunca como
+   `agent_message_sent`.
+5. Corregir la divergencia que reinyecta `complete_task`.
+
+Ejecución documentada como evidencia reproducible, con link directo a
+Kapso: https://app.kapso.ai/projects/1908f12d-3ac4-407f-b8f0-b79f954ed1d2/flows?flow_execution_id=1fbca12f-176f-4397-a52e-f1e9ab45892c&tab=runs
+
 **🟡 REGRESIÓN EN VIVO, 2026-09-25 — `complete_task` volvió a estar
 disponible; Kapso ya la retiró de nuevo, pero sin garantía de que no
 vuelva a colarse.** El 5 de septiembre
