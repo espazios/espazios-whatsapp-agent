@@ -3,8 +3,9 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
-**🔴 REGRESIÓN EN VIVO, 2026-09-25 — `complete_task` volvió a estar
-disponible, enviado a Kapso, pendiente confirmación.** El 5 de septiembre
+**🟡 REGRESIÓN EN VIVO, 2026-09-25 — `complete_task` volvió a estar
+disponible; Kapso ya la retiró de nuevo, pero sin garantía de que no
+vuelva a colarse.** El 5 de septiembre
 Kapso confirmó haber retirado `complete_task` de `enabled_default_tools`
 del Workflow (ver más abajo, "RESUELTO a nivel de plataforma, 2026-09-05
 noche") después de que esa herramienta terminara ejecuciones completas en
@@ -33,7 +34,39 @@ la ignoró, lo que confirma que no es un problema de redacción: la
 herramienta volvió a estar disponible para que el modelo la llame. Se le
 pidió a Kapso que revise `enabled_default_tools` del Workflow, confirme
 por qué volvió (redeploy, restauración de versión, u otro cambio de
-config) y la retire de nuevo. **Pendiente respuesta de Kapso.**
+config) y la retire de nuevo.
+
+**Respuesta de Kapso (mismo día):** confirmó la causa revisando el propio
+evento `agent_tools_configured` de esa ejecución, que sí incluía
+`complete_task` en la lista efectiva — no fue el modelo inventándola ni un
+problema del prompt. Retiraron `complete_task` de `enabled_default_tools`
+del nodo `agent_1787008867123`; quedaron `send_media`,
+`get_execution_metadata`, `get_whatsapp_context`, `contact_conversations`,
+`get_current_datetime`, `save_variable`, `get_variable`, `ask_about_file`,
+`handoff_to_human` y `enter_waiting`. Confirmaron releyendo el grafo
+después del cambio que ya no aparece.
+
+**Punto importante que dejaron explícito — no declaran esto cerrado del
+todo:** el grafo reportaba `lock_version: 238` antes del cambio, pero la
+edición no incrementó esa versión (fue una modificación de configuración
+interna del nodo). Eso significa que la protección de septiembre no
+estaba persistiendo de forma confiable en la configuración efectiva que
+usa el runtime — y no hay ningún mecanismo documentado que bloquee
+permanentemente una herramienta contra una restauración de versión o un
+redeploy futuro. Kapso mismo dice que esta vez el caso puntual queda
+corregido, pero **la regresión de persistencia/configuración merece un
+ticket de plataforma aparte** — no hay garantía de que no vuelva a
+colarse una tercera vez.
+
+Mitigación que proponen mientras tanto (ninguna es automática, hay que
+hacerlas a mano):
+1. Mantener `complete_task` fuera de `enabled_default_tools`.
+2. Revisar `agent_tools_configured` en cualquier ejecución nueva sospechosa.
+3. Revisar de inmediato cualquier ejecución con `agent_task_completed`
+   (siempre debería ser sospechoso en este Workflow, dado que la regla de
+   texto dice que nunca se debe cerrar la tarea).
+4. Nunca restaurar una versión antigua del canvas sin volver a verificar
+   la lista efectiva de herramientas después.
 
 **🔴 BUG NUEVO EN VIVO, 2026-09-25 — confirmado por Kapso, sin fix de
 plataforma disponible todavía.** Misma familia que el bug de `complete_task` (ver más
