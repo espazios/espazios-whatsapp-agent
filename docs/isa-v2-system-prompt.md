@@ -3,6 +3,62 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**🔴 LIMITACIÓN DE PLATAFORMA CONFIRMADA, 2026-09-25 — ninguna ejecución
+se reanuda una vez que cambia la conversación; no hay forma de controlar
+el cierre por timeout desde el Workflow.** Pregunta enviada a Kapso tras
+ver que Yonathan Murillo perdía todos sus datos cada vez que el bug de
+turno silencioso (ver más abajo) dejaba una conversación colgada y volvía
+a escribir.
+
+**Evidencia:** ejecución `f6b05d9a-26ce-4561-a7da-6b9fef7ccf5e`
+(conversación `e8d8f270-2f01-4f49-ac12-d03bc8e41606`) tenía guardado
+`nombre`, `ciudad`, `tipo_proyecto`, `presupuesto`, `m2`,
+`conjunto_o_barrio` — pero seguía en estado `waiting` (nunca `ended`).
+Aun así, la siguiente ejecución (`e699e4b7-762a-462c-8d18-9a8d22a842dd`,
+conversación nueva `b54cbdad-2e47-4f6a-abba-6aa3ff9f8230`) arrancó de
+cero, con solo `nombre` y `last_user_input: Hola` — no heredó nada.
+
+**Respuesta de Kapso — reglas confirmadas:**
+1. Una ejecución `ended`/`failed` nunca se reanuda; un mensaje posterior
+   siempre crea una ejecución nueva.
+2. **Una ejecución en `waiting` tampoco se reanuda si la conversación
+   activa cambió** (nuevo `conversation_id`) — el enrutamiento es por
+   conversación, no por contacto/teléfono. Esto es justo lo que le pasó a
+   Yonathan: su ejecución seguía técnicamente `waiting`, pero como el
+   mensaje entrante quedó asociado a una conversación distinta, nunca la
+   tocó.
+3. **No existe ninguna configuración del Workflow para reanudar por
+   `business_scoped_user_id` o teléfono.** Las variables `vars.*`
+   pertenecen únicamente al contexto de esa ejecución puntual.
+4. Los datos de `guardar_lead_tibio`/`guardar_lead_db` **sí persisten**
+   en sus tablas externas (`leads_isa_v2`, `leads_tibios_isa_v2`), pero
+   una ejecución nueva **no los carga automáticamente** como `vars.*` —
+   solo estarían disponibles si el propio Workflow los lee explícitamente
+   con una función al arrancar.
+5. **No hay ninguna opción de Workflow para controlar cuándo se cierra
+   una conversación** (ej. restringirlo solo a "agendamiento confirmado"
+   o "despedida explícita", que era lo que pedimos). `message_debounce_seconds`
+   e `inbound_message_read_mode` no controlan el timeout de inactividad —
+   el cierre automático es comportamiento general del runtime, no una
+   condición configurable del grafo. Kapso fue explícito: **esto no se
+   resuelve agregando instrucciones al prompt.**
+
+**Camino que sí es construible ahora, sin esperar a Kapso:** el propio
+Workflow podría, al arrancar cada ejecución nueva, leer `leads_isa_v2`/
+`leads_tibios_isa_v2` por teléfono y precargar los datos ya conocidos —
+no reanuda la ejecución ni el historial completo, pero evita que el
+cliente tenga que re-escribir nombre, ciudad, tipo de proyecto, etc. si
+ya los había dado antes. Kapso mismo lo propuso como mitigación parcial,
+señalando que falta definir qué campos cargar y cómo evitar mezclar
+conversaciones antiguas del mismo número. **Pendiente decidir si se
+construye.**
+
+**Conclusión:** la combinación de los dos bugs (turno silencioso + no
+reanudación) es la causa completa de por qué un cliente puede perder todo
+su progreso — no es un solo bug, son dos fallas de plataforma
+independientes que se combinan. Ninguna de las dos tiene fix disponible
+hoy del lado de Kapso.
+
 **🔴 BUG NUEVO EN VIVO, 2026-09-25 — placeholder interno de debug se envió
 como mensaje real al cliente; requiere fix de runtime que Kapso no puede
 aplicar desde el asistente de IA.** Misma familia que el bug de
