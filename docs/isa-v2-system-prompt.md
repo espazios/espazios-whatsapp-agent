@@ -3,6 +3,63 @@
 Este archivo versiona el system prompt del Workflow "Isa v2 (IA
 generativa)" en Kapso — historial completo de cambios más abajo.
 
+**🔴 BUG DE PLATAFORMA CONFIRMADO, 2026-09-25/26 — `{"error":"Function not
+found"}` pese a `deployed`; requiere al equipo de plataforma de Kapso, el
+asistente de IA ya no puede avanzar más.** Mismo patrón que el 404 de
+`process-followups` de hace semanas — otra vez algo que la plataforma
+marca como listo pero que el runtime no resuelve.
+
+**Evidencia:** probando `followups-list` con la URL exacta que Kapso
+confirmó (`https://api.kapso.ai/platform/v1/functions/50d78a89-fa7b-4d17-aad6-da27425f52dc/invoke`,
+método y headers correctos), la respuesta es:
+```
+HTTP/1.1 404 Not Found
+{"error":"Function not found"}
+```
+Headers muestran que la petición sí llega al backend real (`Server:
+cloudflare`, `x-render-origin-server: Render`) — no es un problema de
+red ni de nuestro lado. IDs de request para su lado:
+`x-request-id: 740b6db0-7521-41be-bc82-24d5d18d95c4`, `rndr-id:
+92b19bcb-95aa-46d8`, `CF-RAY: a40df6a14ac37435-MIA`.
+
+**Diagnóstico de Kapso:** confirmaron que `followups-list` aparece
+`deployed`, que el `function_id` coincide, que pertenece al proyecto
+correcto — pero **buscaron esos mismos identificadores en su historial
+interno de invocaciones y no encontraron ningún evento.** O sea: la
+solicitud nunca llegó al runtime de la función; el error
+`{"error":"Function not found"}` se genera en la capa de API/backend
+*antes* de crear la invocación. Hay una inconsistencia real entre el
+registro de la función desplegada, la ruta pública de invoke, y el
+runtime que debería resolverla. Kapso no encontró una URL alternativa
+documentada — el formato que estamos usando es el correcto según su
+propia documentación.
+
+**Esto bloquea las 4 funciones por igual** (mismo formato de URL en las
+4), así que todo el procesador de Railway (`src/followups/`, ya escrito
+y funcionando en cuanto esto se resuelva) queda sin poder operar hasta
+que se arregle.
+
+**Lo que Kapso dice que debe revisar su equipo de plataforma** (no algo
+que el asistente de IA pueda tocar):
+1. Que el deployment haya creado el binding del `function_id` en el
+   gateway de invoke.
+2. Que el deployment pertenezca al proyecto correcto.
+3. Que el registro de la función y el runtime usen el mismo entorno.
+4. Que la publicación no haya quedado en estado lógico `deployed` sin
+   un runtime target real detrás.
+5. Que el resolver de `/functions/{id}/invoke` consulte el mismo UUID
+   que devuelve el dashboard.
+
+**Estado mientras tanto — no es tan grave como el bug original:** el
+`register-followup` corregido sigue guardando bien los datos en
+`conversation_followups` (con la mitigación de duplicados/cancelación ya
+aplicada) — no se pierde información, solo no hay push automático hasta
+que esto se resuelva. Dado el precedente de `process-followups` (3
+semanas sin resolverse), hay que escalar esto por un canal de soporte
+humano de Kapso, no seguir solo con su asistente de IA — el propio
+asistente ya llegó al límite de lo que puede diagnosticar y corregir
+desde ahí.
+
 **🟡 LAS 4 FUNCIONES DE KAPSO EN DEPLOYMENT, 2026-09-25 — falta la
 `function_url` de cada una para configurar Railway.** Kapso creó las 4
 funciones del contrato y arrancó el deploy, sin tocar el Workflow ni
