@@ -30,20 +30,122 @@
             "max-chars": 60
           },
           {
+            "type": "Dropdown",
+            "name": "indicativo",
+            "label": "Indicativo del país",
+            "required": true,
+            "init-value": "57",
+            "data-source": [
+              {
+                "id": "57",
+                "title": "🇨🇴 Colombia (+57)"
+              },
+              {
+                "id": "1",
+                "title": "🇺🇸 Estados Unidos / Canadá (+1)"
+              },
+              {
+                "id": "34",
+                "title": "🇪🇸 España (+34)"
+              },
+              {
+                "id": "52",
+                "title": "🇲🇽 México (+52)"
+              },
+              {
+                "id": "58",
+                "title": "🇻🇪 Venezuela (+58)"
+              },
+              {
+                "id": "593",
+                "title": "🇪🇨 Ecuador (+593)"
+              },
+              {
+                "id": "51",
+                "title": "🇵🇪 Perú (+51)"
+              },
+              {
+                "id": "507",
+                "title": "🇵🇦 Panamá (+507)"
+              },
+              {
+                "id": "56",
+                "title": "🇨🇱 Chile (+56)"
+              },
+              {
+                "id": "54",
+                "title": "🇦🇷 Argentina (+54)"
+              }
+            ]
+          },
+          {
             "type": "TextInput",
             "name": "celular_referido",
             "label": "Celular de la persona",
             "input-type": "phone",
             "required": true,
-            "helper-text": "10 dígitos, ej. 3001234567"
+            "helper-text": "Sin indicativo, ej. 3001234567"
           },
           {
             "type": "TextInput",
+            "name": "correo_referido",
+            "label": "Correo de la persona (opcional)",
+            "input-type": "email",
+            "required": false,
+            "helper-text": "ej. nombre@correo.com"
+          },
+          {
+            "type": "Dropdown",
             "name": "ciudad",
-            "label": "Ciudad y barrio o conjunto",
+            "label": "Ciudad",
+            "required": true,
+            "data-source": [
+              {
+                "id": "bogota",
+                "title": "Bogotá"
+              },
+              {
+                "id": "soacha",
+                "title": "Soacha"
+              },
+              {
+                "id": "mosquera",
+                "title": "Mosquera"
+              },
+              {
+                "id": "madrid",
+                "title": "Madrid"
+              },
+              {
+                "id": "chia",
+                "title": "Chía"
+              },
+              {
+                "id": "cota",
+                "title": "Cota"
+              },
+              {
+                "id": "zipaquira",
+                "title": "Zipaquirá"
+              },
+              {
+                "id": "cajica",
+                "title": "Cajicá"
+              },
+              {
+                "id": "la_calera",
+                "title": "La Calera"
+              }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "name": "barrio_conjunto",
+            "label": "Barrio o conjunto",
             "input-type": "text",
             "required": true,
-            "max-chars": 80
+            "max-chars": 80,
+            "helper-text": "Ej. Colina Campestre, Conjunto Ankara"
           },
           {
             "type": "Dropdown",
@@ -94,8 +196,11 @@
               "payload": {
                 "nombre_referidor": "${form.nombre_referidor}",
                 "nombre_referido": "${form.nombre_referido}",
+                "indicativo": "${form.indicativo}",
                 "celular_referido": "${form.celular_referido}",
+                "correo_referido": "${form.correo_referido}",
                 "ciudad": "${form.ciudad}",
+                "barrio_conjunto": "${form.barrio_conjunto}",
                 "tipo_proyecto": "${form.tipo_proyecto}",
                 "comentario": "${form.comentario}",
                 "consentimiento": "${form.consentimiento}"

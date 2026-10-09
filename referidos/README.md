@@ -26,7 +26,8 @@ guarda el formulario y arma el mensaje de agradecimiento.
 
 | Pieza | Nombre | ID |
 | --- | --- | --- |
-| Formulario (WhatsApp Flow, publicado) | Referidos Espazios | Kapso `6994691e-d0d5-4e7d-9664-4cac3cb06d7a`, Meta `1445759314153131` |
+| Formulario (WhatsApp Flow, publicado) | Referidos Espazios v2 | Kapso `b3548d34-b3b5-4e1f-82bc-ae7699e0f53a`, Meta `2687227798403049` |
+| Formulario v1 (ya no se usa) | Referidos Espazios | Kapso `6994691e-d0d5-4e7d-9664-4cac3cb06d7a`, Meta `1445759314153131` |
 | Workflow (activo) | Referidos Espazios (`referidos-espazios`) | `15f58e38-f2b7-445c-a7f6-3520061f54a6` |
 | Función (decide node) | `referidos-opcion` | `20895dd0-6e8d-48e0-a566-91aeb3be33c8` |
 | Función (function node) | `referidos-guardar` | `770b2e81-086d-4eac-b1a7-1d6999fe959c` |
@@ -36,13 +37,19 @@ solo con un push a este repo: los cambios se suben con el MCP de Kapso o el dash
 
 ## Campos del formulario
 
-Tu nombre, nombre de la persona, celular (10 dígitos), ciudad y barrio o conjunto,
-qué necesita (Solo Obra Blanca / Intermedio / Remodelación Total / Carpintería / No
-estoy seguro), comentario opcional y el consentimiento de que Espazios la contacte
-(obligatorio, Ley 1581 de 2012).
+Tu nombre, nombre de la persona, indicativo del país (lista, Colombia +57 por defecto),
+celular (sin indicativo), correo (opcional, formato de correo), ciudad (lista con las
+mismas 9 ciudades de cobertura de Isa: Bogotá, Soacha, Mosquera, Madrid, Chía, Cota,
+Zipaquirá, Cajicá, La Calera), barrio o conjunto, qué necesita (Solo Obra Blanca /
+Intermedio / Remodelación Total / Carpintería / No estoy seguro), comentario opcional y
+el consentimiento de que Espazios la contacte (obligatorio, Ley 1581 de 2012).
 
-Se guarda en la tabla D1 `referidos_formulario` (se crea sola en el primer registro).
-Sin reglas de atribución ni de 90 días.
+Se guarda en la tabla D1 `referidos_formulario` (se crea sola). `celular_referido` queda
+con indicativo (ej. `573001234567`). Las columnas `correo_referido` y `barrio_conjunto`
+se agregan solas a la tabla existente. Sin reglas de atribución ni de 90 días.
+
+Un formulario publicado en Meta no se puede editar: para cambiarlo hay que crear uno
+nuevo y apuntar el nodo `enviar_formulario` del workflow a su ID de Meta.
 
 ## En producción (2026-10-09)
 
