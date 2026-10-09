@@ -1,21 +1,22 @@
 // referidos-guardar · Kapso Function (function node del workflow "Referidos Espazios")
 // Guarda la respuesta del formulario en la tabla propia `referidos_formulario`.
 // Sin reglas de atribución y sin tocar tablas de Isa.
+// El texto de confirmación promete llamada al referido en menos de 8 horas hábiles.
 // Devuelve vars.referido_estado y vars.referido_mensaje (el workflow envía el mensaje).
 
 async function handler(request, env) {
   const body = await request.json().catch(() => ({}));
   const r = respuestaFormulario(body);
-  if (!r) return salida("sin_respuesta", "No recibimos el formulario. Cuando quieras recomendar a alguien, escribe REFERIR.");
+  if (!r) return salida("sin_respuesta", "Parece que no alcanzaste a enviar el formulario. Cuando quieras retomarlo, escríbenos y te lo enviamos de nuevo. 😊");
 
   const nombre = limpiar(r.nombre_referido, 60);
   const celular = celularColombia(r.celular_referido);
   if (!nombre || !celular) {
     return salida("celular_invalido",
-      `El celular "${r.celular_referido || ""}" no parece un celular colombiano de 10 dígitos. Escribe REFERIR para enviarlo de nuevo.`);
+      `El celular "${r.celular_referido || ""}" no parece un celular colombiano de 10 dígitos. Escríbenos de nuevo y lo corregimos.`);
   }
   if (!(r.consentimiento === true || r.consentimiento === "true")) {
-    return salida("sin_consentimiento", "Necesitamos que la persona haya aceptado que Espazios la contacte. Escribe REFERIR cuando lo tengas.");
+    return salida("sin_consentimiento", "Para contactar a tu referido necesitamos que haya aceptado que Espazios lo llame. Cuando lo tengas, escríbenos de nuevo.");
   }
 
   const ctx = body.execution_context?.context || {};
@@ -33,7 +34,12 @@ async function handler(request, env) {
   ).bind(id, telefonoReferidor, limpiar(r.nombre_referidor, 60), nombre, celular, limpiar(r.ciudad, 80),
     limpiar(r.tipo_proyecto, 40), limpiar(r.comentario, 300), new Date().toISOString()).run();
 
-  return salida("registrado", `Listo, recibimos a ${nombre}. Un asesor de Espazios lo contactará pronto. Gracias por recomendarnos.`,
+  const referidor = limpiar(r.nombre_referidor, 60);
+  const saludo = referidor ? `¡Gracias, ${referidor.split(" ")[0]}! 🙌` : "¡Gracias por tu recomendación! 🙌";
+  return salida("registrado",
+    `${saludo}\n\nYa tenemos los datos de *${nombre}*. Uno de nuestros asesores lo llamará en *menos de 8 horas hábiles* ` +
+    `para conocer su proyecto y contarle cómo podemos transformar su espacio.\n\n` +
+    `Gracias por confiar en Espazios. Cuando quieras recomendar a alguien más, escríbenos por aquí.`,
     { referido_id: id });
 }
 

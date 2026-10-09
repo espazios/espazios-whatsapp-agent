@@ -6,13 +6,19 @@ Está **separado de Isa**: no toca su workflow, sus funciones, sus triggers ni s
 ## Cómo funciona
 
 ```
-Mensaje "REFERIR" ─► referidos-palabra-clave
-                       ├─ referir ─► envía el formulario "Referidos Espazios"
-                       │             ├─ espera la respuesta (1 hora)
-                       │             ├─ referidos-guardar: valida y guarda en referidos_formulario
-                       │             └─ confirma al referidor
-                       └─ otro ────► termina sin responder nada
+La persona saluda (cualquier mensaje)
+        │
+Bienvenida: canal exclusivo para referir clientes + 2 botones
+        ├─ "Referir" ──────────► formulario ─► referidos-guardar ─► agradecimiento
+        │                         (espera 1 h)                     (llamada al referido
+        │                                                           en < 8 horas hábiles)
+        ├─ "No voy a referir" ─► despedida y fin
+        ├─ escribe otra cosa ──► recordatorio de tocar un botón (vuelve a esperar)
+        └─ 24 h sin respuesta ─► fin, sin enviar nada
 ```
+
+`referidos-opcion` (decide node) lee el botón tocado; `referidos-guardar` valida y
+guarda el formulario y arma el mensaje de agradecimiento.
 
 ## Qué hay en Kapso (proyecto 1908f12d-3ac4-407f-b8f0-b79f954ed1d2)
 
@@ -20,7 +26,7 @@ Mensaje "REFERIR" ─► referidos-palabra-clave
 | --- | --- | --- |
 | Formulario (WhatsApp Flow, borrador) | Referidos Espazios | Kapso `6994691e-d0d5-4e7d-9664-4cac3cb06d7a`, Meta `1445759314153131` |
 | Workflow (borrador, **sin trigger**) | Referidos Espazios (`referidos-espazios`) | `15f58e38-f2b7-445c-a7f6-3520061f54a6` |
-| Función (decide node) | `referidos-palabra-clave` | `20895dd0-6e8d-48e0-a566-91aeb3be33c8` |
+| Función (decide node) | `referidos-opcion` | `20895dd0-6e8d-48e0-a566-91aeb3be33c8` |
 | Función (function node) | `referidos-guardar` | `770b2e81-086d-4eac-b1a7-1d6999fe959c` |
 
 Código fuente: `formulario-referido.flow.json` y `functions/`. Kapso no se actualiza

@@ -11,7 +11,7 @@
         "children": [
           {
             "type": "TextBody",
-            "text": "Cuéntanos a quién nos recomiendas. Un asesor de Espazios lo contactará."
+            "text": "Cuéntanos a quién nos recomiendas. Un asesor de Espazios lo llamará en menos de 8 horas hábiles."
           },
           {
             "type": "TextInput",
@@ -51,11 +51,26 @@
             "label": "¿Qué necesita?",
             "required": true,
             "data-source": [
-              { "id": "obra_blanca", "title": "Solo Obra Blanca" },
-              { "id": "intermedio", "title": "Intermedio" },
-              { "id": "remodelacion_total", "title": "Remodelación Total" },
-              { "id": "carpinteria", "title": "Carpintería" },
-              { "id": "no_sabe", "title": "No estoy seguro" }
+              {
+                "id": "obra_blanca",
+                "title": "Solo Obra Blanca"
+              },
+              {
+                "id": "intermedio",
+                "title": "Intermedio"
+              },
+              {
+                "id": "remodelacion_total",
+                "title": "Remodelación Total"
+              },
+              {
+                "id": "carpinteria",
+                "title": "Carpintería"
+              },
+              {
+                "id": "no_sabe",
+                "title": "No estoy seguro"
+              }
             ]
           },
           {
