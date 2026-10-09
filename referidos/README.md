@@ -12,6 +12,8 @@ Bienvenida: canal exclusivo para referir clientes + 2 botones
         ├─ "Referir" ──────────► formulario ─► referidos-guardar ─► agradecimiento
         │                         (espera 1 h)                     (llamada al referido
         │                                                           en < 8 horas hábiles)
+        │                                                           + los mismos 2 botones,
+        │                                                           para referir a alguien más
         ├─ "No voy a referir" ─► despedida y fin
         ├─ escribe otra cosa ──► recordatorio de tocar un botón (vuelve a esperar)
         └─ 24 h sin respuesta ─► fin, sin enviar nada

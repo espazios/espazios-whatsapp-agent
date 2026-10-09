@@ -2,21 +2,22 @@
 // Guarda la respuesta del formulario en la tabla propia `referidos_formulario`.
 // Sin reglas de atribución y sin tocar tablas de Isa.
 // El texto de confirmación promete llamada al referido en menos de 8 horas hábiles.
+// Todos los mensajes se envían con los botones Referir / No voy a referir.
 // Devuelve vars.referido_estado y vars.referido_mensaje (el workflow envía el mensaje).
 
 async function handler(request, env) {
   const body = await request.json().catch(() => ({}));
   const r = respuestaFormulario(body);
-  if (!r) return salida("sin_respuesta", "Parece que no alcanzaste a enviar el formulario. Cuando quieras retomarlo, escríbenos y te lo enviamos de nuevo. 😊");
+  if (!r) return salida("sin_respuesta", "Parece que no alcanzaste a enviar el formulario. 😊\n\n¿Quieres intentarlo de nuevo?");
 
   const nombre = limpiar(r.nombre_referido, 60);
   const celular = celularColombia(r.celular_referido);
   if (!nombre || !celular) {
     return salida("celular_invalido",
-      `El celular "${r.celular_referido || ""}" no parece un celular colombiano de 10 dígitos. Escríbenos de nuevo y lo corregimos.`);
+      `El celular "${r.celular_referido || ""}" no parece un celular colombiano de 10 dígitos.\n\nToca *Referir* para enviarlo de nuevo.`);
   }
   if (!(r.consentimiento === true || r.consentimiento === "true")) {
-    return salida("sin_consentimiento", "Para contactar a tu referido necesitamos que haya aceptado que Espazios lo llame. Cuando lo tengas, escríbenos de nuevo.");
+    return salida("sin_consentimiento", "Para contactar a tu referido necesitamos que haya aceptado que Espazios lo llame.\n\nCuando lo tengas, toca *Referir* para enviarlo de nuevo.");
   }
 
   const ctx = body.execution_context?.context || {};
@@ -39,7 +40,7 @@ async function handler(request, env) {
   return salida("registrado",
     `${saludo}\n\nYa tenemos los datos de *${nombre}*. Uno de nuestros asesores lo llamará en *menos de 8 horas hábiles* ` +
     `para conocer su proyecto y contarle cómo podemos transformar su espacio.\n\n` +
-    `Gracias por confiar en Espazios. Cuando quieras recomendar a alguien más, escríbenos por aquí.`,
+    `Gracias por confiar en Espazios. ¿Quieres recomendar a alguien más?`,
     { referido_id: id });
 }
 
