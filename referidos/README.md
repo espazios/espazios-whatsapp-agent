@@ -24,8 +24,8 @@ guarda el formulario y arma el mensaje de agradecimiento.
 
 | Pieza | Nombre | ID |
 | --- | --- | --- |
-| Formulario (WhatsApp Flow, borrador) | Referidos Espazios | Kapso `6994691e-d0d5-4e7d-9664-4cac3cb06d7a`, Meta `1445759314153131` |
-| Workflow (borrador, **sin trigger**) | Referidos Espazios (`referidos-espazios`) | `15f58e38-f2b7-445c-a7f6-3520061f54a6` |
+| Formulario (WhatsApp Flow, publicado) | Referidos Espazios | Kapso `6994691e-d0d5-4e7d-9664-4cac3cb06d7a`, Meta `1445759314153131` |
+| Workflow (activo) | Referidos Espazios (`referidos-espazios`) | `15f58e38-f2b7-445c-a7f6-3520061f54a6` |
 | Función (decide node) | `referidos-opcion` | `20895dd0-6e8d-48e0-a566-91aeb3be33c8` |
 | Función (function node) | `referidos-guardar` | `770b2e81-086d-4eac-b1a7-1d6999fe959c` |
 
@@ -42,16 +42,13 @@ estoy seguro), comentario opcional y el consentimiento de que Espazios la contac
 Se guarda en la tabla D1 `referidos_formulario` (se crea sola en el primer registro).
 Sin reglas de atribución ni de 90 días.
 
-## Pendiente para ponerlo a funcionar
+## En producción (2026-10-09)
 
-El Sandbox de Kapso no soporta WhatsApp Flows, y el único número de producción es el
-de Isa (+57 310 8708467). Por eso el formulario se creó en la cuenta de WhatsApp de
-Espazios (WABA `2058859495045331`) y el workflow quedó **sin trigger**.
+- Número del canal: **+57 313 875 6205** (`phone_number_id 1416714448186897`), en la
+  misma cuenta de WhatsApp de Espazios (WABA `2058859495045331`) que Isa.
+- Formulario **publicado** en Meta.
+- Workflow **activo y publicado**, con un único trigger `inbound_message` sobre
+  `1416714448186897`.
 
-1. Conectar en Kapso un número propio para referidos, en la misma cuenta de WhatsApp
-   de Espazios (así puede enviar este mismo formulario).
-2. Publicar el formulario (`whatsapp_flows` → `publish`, irreversible en Meta).
-3. Crear el trigger `inbound_message` del workflow sobre ese número nuevo y publicar
-   el workflow.
-
-**Nunca** crear el trigger sobre el número de Isa (`1015963018277835`).
+Isa no cambió: su workflow sigue escuchando solo `1015963018277835`. **Nunca** crear
+un trigger de este workflow sobre el número de Isa.
