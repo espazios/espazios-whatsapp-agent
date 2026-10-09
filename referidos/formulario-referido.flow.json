@@ -109,12 +109,8 @@
                 "title": "Soacha"
               },
               {
-                "id": "mosquera",
-                "title": "Mosquera"
-              },
-              {
-                "id": "madrid",
-                "title": "Madrid"
+                "id": "cajica",
+                "title": "Cajicá"
               },
               {
                 "id": "chia",
@@ -125,16 +121,20 @@
                 "title": "Cota"
               },
               {
-                "id": "zipaquira",
-                "title": "Zipaquirá"
-              },
-              {
-                "id": "cajica",
-                "title": "Cajicá"
-              },
-              {
                 "id": "la_calera",
                 "title": "La Calera"
+              },
+              {
+                "id": "madrid",
+                "title": "Madrid"
+              },
+              {
+                "id": "mosquera",
+                "title": "Mosquera"
+              },
+              {
+                "id": "zipaquira",
+                "title": "Zipaquirá"
               }
             ]
           },

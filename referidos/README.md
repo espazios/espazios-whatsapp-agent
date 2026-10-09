@@ -26,7 +26,8 @@ guarda el formulario y arma el mensaje de agradecimiento.
 
 | Pieza | Nombre | ID |
 | --- | --- | --- |
-| Formulario (WhatsApp Flow, publicado) | Referidos Espazios v2 | Kapso `b3548d34-b3b5-4e1f-82bc-ae7699e0f53a`, Meta `2687227798403049` |
+| Formulario (WhatsApp Flow, publicado) | Referidos Espazios v3 | Kapso `0f0e6e1d-5942-4f45-b033-615cd3debdd3`, Meta `1386373260332026` |
+| Formulario v2 (ya no se usa) | Referidos Espazios v2 | Kapso `b3548d34-b3b5-4e1f-82bc-ae7699e0f53a`, Meta `2687227798403049` |
 | Formulario v1 (ya no se usa) | Referidos Espazios | Kapso `6994691e-d0d5-4e7d-9664-4cac3cb06d7a`, Meta `1445759314153131` |
 | Workflow (activo) | Referidos Espazios (`referidos-espazios`) | `15f58e38-f2b7-445c-a7f6-3520061f54a6` |
 | Función (decide node) | `referidos-opcion` | `20895dd0-6e8d-48e0-a566-91aeb3be33c8` |
@@ -39,8 +40,8 @@ solo con un push a este repo: los cambios se suben con el MCP de Kapso o el dash
 
 Tu nombre, nombre de la persona, indicativo del país (lista, Colombia +57 por defecto),
 celular (sin indicativo), correo (opcional, formato de correo), ciudad (lista con las
-mismas 9 ciudades de cobertura de Isa: Bogotá, Soacha, Mosquera, Madrid, Chía, Cota,
-Zipaquirá, Cajicá, La Calera), barrio o conjunto, qué necesita (Solo Obra Blanca /
+mismas 9 ciudades de cobertura de Isa: Bogotá y Soacha primero, luego en orden
+alfabético Cajicá, Chía, Cota, La Calera, Madrid, Mosquera, Zipaquirá), barrio o conjunto, qué necesita (Solo Obra Blanca /
 Intermedio / Remodelación Total / Carpintería / No estoy seguro), comentario opcional y
 el consentimiento de que Espazios la contacte (obligatorio, Ley 1581 de 2012).
 
