@@ -1,0 +1,94 @@
+{
+  "version": "7.2",
+  "screens": [
+    {
+      "id": "REFERIDO",
+      "title": "Recomienda a alguien",
+      "terminal": true,
+      "success": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "Cuéntanos a quién nos recomiendas. Un asesor de Espazios lo contactará."
+          },
+          {
+            "type": "TextInput",
+            "name": "nombre_referidor",
+            "label": "Tu nombre",
+            "input-type": "text",
+            "required": true,
+            "max-chars": 60
+          },
+          {
+            "type": "TextInput",
+            "name": "nombre_referido",
+            "label": "Nombre de la persona",
+            "input-type": "text",
+            "required": true,
+            "max-chars": 60
+          },
+          {
+            "type": "TextInput",
+            "name": "celular_referido",
+            "label": "Celular de la persona",
+            "input-type": "phone",
+            "required": true,
+            "helper-text": "10 dígitos, ej. 3001234567"
+          },
+          {
+            "type": "TextInput",
+            "name": "ciudad",
+            "label": "Ciudad y barrio o conjunto",
+            "input-type": "text",
+            "required": true,
+            "max-chars": 80
+          },
+          {
+            "type": "Dropdown",
+            "name": "tipo_proyecto",
+            "label": "¿Qué necesita?",
+            "required": true,
+            "data-source": [
+              { "id": "obra_blanca", "title": "Solo Obra Blanca" },
+              { "id": "intermedio", "title": "Intermedio" },
+              { "id": "remodelacion_total", "title": "Remodelación Total" },
+              { "id": "carpinteria", "title": "Carpintería" },
+              { "id": "no_sabe", "title": "No estoy seguro" }
+            ]
+          },
+          {
+            "type": "TextArea",
+            "name": "comentario",
+            "label": "Comentario (opcional)",
+            "required": false,
+            "max-length": 300
+          },
+          {
+            "type": "OptIn",
+            "name": "consentimiento",
+            "label": "La persona sabe y aceptó que Espazios la contacte.",
+            "required": true
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "nombre_referidor": "${form.nombre_referidor}",
+                "nombre_referido": "${form.nombre_referido}",
+                "celular_referido": "${form.celular_referido}",
+                "ciudad": "${form.ciudad}",
+                "tipo_proyecto": "${form.tipo_proyecto}",
+                "comentario": "${form.comentario}",
+                "consentimiento": "${form.consentimiento}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
