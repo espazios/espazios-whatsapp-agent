@@ -1,8 +1,8 @@
 # Isa v3 — diseño: flujo determinístico + IA solo para desvíos
 
-Estado: **propuesta, pendiente de aprobación** (2026-11-24). Isa v2 no se toca;
-v3 se construye como Workflow nuevo en Kapso y se prueba en el número de
-pruebas antes de cualquier corte.
+Estado: **construido en Kapso como borrador, sin trigger** (2026-11-24). Isa v2
+no se tocó. Ver la sección 7 para lo implementado y los pasos pendientes antes
+de probarlo en el número de pruebas.
 
 ## 1. Diagnóstico de Isa v2 (revisado en vivo vía MCP de Kapso)
 
@@ -214,3 +214,55 @@ Independientes de v3, en producción, pendientes de aprobación:
 2. Agregar `banos` y `tipoProyecto` al esquema de `generar_estimado_ilustrativo`,
    y `nombre`, `ciudad`, `proyecto`, `banos` al de `ver_detalle_paquete`.
    Esto debería arreglar por sí solo el detalle que no llega.
+
+## 7. Implementado (2026-11-24)
+
+La implementación final simplificó el grafo de la sección 3: en vez de un
+nodo por pregunta, **un solo motor** decide y además **envía todos los
+mensajes** (texto, botones, listas, imágenes, link de Calendar) por la API de
+Kapso. Así los títulos de los botones pueden ser dinámicos (por ejemplo, solo
+los 2 paquetes que faltan por ver) y la lógica completa queda en código con
+tests.
+
+```
+start -> motor (decide, función isa3-motor)
+           |- esperar -> wait_for_response -> motor
+           |- desvio  -> agente_desvio (IA, tool_only) --complete_task--> motor
+           '- humano  -> handoff
+```
+
+| Pieza | Dónde |
+|---|---|
+| Motor (máquina de estados, reglas, envíos, D1, Railway) | `kapso-functions/isa-v3/motor.js` → Kapso Function `isa3-motor` (`6a64ffed-b18c-4568-bc13-913ce136f6c8`), desplegada |
+| Tests (24 escenarios, sin red) | `kapso-functions/isa-v3/motor.test.mjs` — `node --test kapso-functions/isa-v3/motor.test.mjs` |
+| Prompt del agente de desvíos | `docs/isa-v3-prompt-agente.md` (21K caracteres vs 54K de v2; ~2/3 es la tabla de TikTok) |
+| Workflow | "Isa v3 (flujo determinístico + IA)", id `1d9761cc-4333-413a-870d-654fefdeeaec`, **draft, sin triggers** |
+
+Detalles que vale la pena saber:
+- El motor lee los mensajes nuevos de `whatsapp_context.messages` (incluye el
+  id del botón/lista tocado) y recuerda hasta dónde procesó con
+  `vars.ultimo_inbound_at`.
+- Envía con `to` (teléfono) y `recipient` (business_scoped_user_id), así que
+  funciona también con leads de anuncios de Instagram con teléfono oculto.
+- Guarda en las mismas tablas de v2 (`leads_tibios_isa_v2`, `leads_isa_v2`),
+  así los reportes existentes siguen sirviendo.
+- Llama a Railway con **todos** los campos (`banos`, `tipoProyecto`,
+  `nombre`, `ciudad`, `proyecto`) — corrige de raíz el bug del detalle que
+  no llegaba.
+- El agente usa `tool_only`: cualquier texto que no pase por
+  `send_notification_to_user` nunca llega al cliente. Kapso exige tener
+  `enter_waiting` habilitado en ese modo; el prompt prohíbe usarlo.
+- Lista de días para llamada: próximos 6 días hábiles (sin domingos ni
+  festivos de Colombia, calculados con la Ley Emiliani, probados contra 2026).
+
+### Pendiente antes de probar
+1. **Pegar `KAPSO_API_KEY` como secret de `isa3-motor`** (Kapso → Functions →
+   isa3-motor → Secrets). Sin eso el motor no puede enviar mensajes (la
+   prueba de humo lo confirmó: corre bien pero el envío falla).
+2. Conectar un trigger del Workflow al **número de pruebas** (no al de
+   producción) y hacer una conversación completa: saludo → 8 datos →
+   estimado + detalle → ver otro paquete → agendar llamada.
+3. Verificar en esa prueba que WhatsApp acepta la imagen de Railway como
+   encabezado de un mensaje con botones (es lo único que no se pudo probar
+   sin red).
+4. Seguimientos por inactividad: no están en v3 todavía (fase 2).

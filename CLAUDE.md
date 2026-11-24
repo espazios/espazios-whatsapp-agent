@@ -2202,6 +2202,30 @@ seguimientos que nunca se procesan aunque si se registren bien (bug de
 `process-followups`, ver arriba). Vale la pena una auditoria mas amplia
 de conversaciones recientes antes de considerar el pipeline confiable.
 
+## Isa v3 — flujo determinístico + IA solo para desvíos (2026-11-24)
+
+Pedido del usuario: muchas conversaciones de v2 quedaban frenadas y el modelo
+filtraba mensajes internos. Diagnóstico (ver `docs/isa-v3-diseno.md`): v2 es
+un solo agent node (`gpt-5-mini`, prompt de 54K caracteres,
+`auto_send_assistant_text`); `complete_task` volvió a estar habilitado; hay
+turnos donde Isa registra el seguimiento y entra en espera **sin mandar la
+pregunta**; y los esquemas de `generar_estimado_ilustrativo`/
+`ver_detalle_paquete` en Kapso no tienen `banos`/`tipoProyecto` (ni
+`nombre`/`ciudad`/`proyecto` en el detalle), por eso el detalle del paquete
+nunca llega o el servidor responde 400.
+
+Construido: Kapso Function `isa3-motor` (fuente `kapso-functions/isa-v3/
+motor.js`, tests en `motor.test.mjs`) + Workflow "Isa v3 (flujo
+determinístico + IA)" en **draft, sin trigger**. El motor hace saludo,
+perfilamiento, filtros, estimado, detalle y agendamiento sin IA; el agente
+(`docs/isa-v3-prompt-agente.md`, `tool_only`) solo responde desvíos y
+devuelve el control con `complete_task`. Isa v2 no se tocó.
+
+**Pendiente:** el usuario debe pegar `KAPSO_API_KEY` como secret de
+`isa3-motor`; luego conectar el Workflow al número de pruebas y probar una
+conversación completa. Arreglos urgentes de v2 (quitar `complete_task`,
+corregir esquemas de los webhooks) quedaron propuestos, sin aplicar.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
