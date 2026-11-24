@@ -266,3 +266,18 @@ Detalles que vale la pena saber:
    encabezado de un mensaje con botones (es lo único que no se pudo probar
    sin red).
 4. Seguimientos por inactividad: no están en v3 todavía (fase 2).
+
+### Criterios de cobertura (confirmados por el usuario 2026-11-24)
+
+| Tipo de proyecto | Bogotá y Soacha | Chía, Mosquera, Madrid, Cota, Zipaquirá, Cajicá, La Calera, Funza, Facatativá, Sopó | Otras |
+|---|---|---|---|
+| Carpintería | Sí | Sí | No |
+| Solo Obra Blanca, Intermedio, Remodelación Total | Sí | No | No |
+
+Funza, Facatativá y Sopó se agregaron ese día. Están cubiertos por la prueba
+"criterios de cobertura por ciudad y tipo de proyecto" en `motor.test.mjs`.
+Como WhatsApp permite máximo 10 filas por lista, cuando no se reconoce la
+ciudad escrita la lista es de 2 pasos: Bogotá / Soacha / Municipio cercano /
+Otra ciudad, y "Municipio cercano" abre la lista de los 10 municipios.
+**Diferencia con Isa v2:** el prompt de v2 solo tiene 7 municipios (sin
+Funza, Facatativá ni Sopó).

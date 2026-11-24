@@ -31,7 +31,7 @@ const AVISO_DATOS = "Al continuar esta conversación, autorizas el tratamiento d
 // ---------------------------------------------------------------------------
 
 const COBERTURA_COMPLETA = ["Bogotá", "Soacha"];
-const COBERTURA_SOLO_CARPINTERIA = ["Mosquera", "Madrid", "Chía", "Cota", "Zipaquirá", "Cajicá", "La Calera"];
+const COBERTURA_SOLO_CARPINTERIA = ["Mosquera", "Madrid", "Chía", "Cota", "Zipaquirá", "Cajicá", "La Calera", "Funza", "Facatativá", "Sopó"];
 
 // alias normalizado (sin tildes, minusculas) -> ciudad canonica
 const ALIAS_CIUDAD = {
@@ -47,7 +47,7 @@ const ALIAS_CIUDAD = {
   mosquera: "Mosquera", madrid: "Madrid", chia: "Chía", cota: "Cota", zipaquira: "Zipaquirá", zipa: "Zipaquirá",
   cajica: "Cajicá", "la calera": "La Calera", calera: "La Calera",
   // fuera de cobertura conocidas (se reconocen para cerrar sin preguntar de nuevo)
-  funza: "Funza", facatativa: "Facatativá", fusagasuga: "Fusagasugá", girardot: "Girardot", sibate: "Sibaté",
+  funza: "Funza", facatativa: "Facatativá", faca: "Facatativá", fusagasuga: "Fusagasugá", girardot: "Girardot", sibate: "Sibaté",
   tocancipa: "Tocancipá", sopo: "Sopó", tenjo: "Tenjo", tabio: "Tabio", gachancipa: "Gachancipá",
   "el rosal": "El Rosal", subachoque: "Subachoque", medellin: "Medellín", cali: "Cali",
   barranquilla: "Barranquilla", cartagena: "Cartagena", bucaramanga: "Bucaramanga",
@@ -436,10 +436,16 @@ const OPCIONES_TIPO = [
   { id: "tp_carpinteria", title: "Carpintería", description: "Cocina, closets, muebles a medida" },
 ];
 
+// WhatsApp permite maximo 10 filas por lista: primero Bogota/Soacha/municipio/otra,
+// y si elige "Municipio cercano", una segunda lista con los 10 municipios (solo carpinteria).
+const filaCiudad = (c) => ({ id: `c_${norm(c).replace(/ /g, "_")}`, title: c });
 const CIUDADES_LISTA = [
-  ...["Bogotá", "Soacha", "Mosquera", "Madrid", "Chía", "Cota", "Zipaquirá", "Cajicá", "La Calera"].map((c) => ({ id: `c_${norm(c).replace(/ /g, "_")}`, title: c })),
+  filaCiudad("Bogotá"),
+  filaCiudad("Soacha"),
+  { id: "c_municipio", title: "Municipio cercano", description: "Chía, Mosquera, Funza, Cajicá..." },
   { id: "c_otra", title: "Otra ciudad" },
 ];
+const MUNICIPIOS_LISTA = COBERTURA_SOLO_CARPINTERIA.map(filaCiudad);
 
 function saludo(vars, nombrePerfil, nombreDicho) {
   const gancho = "hablas con Isa de Espazios — te acompañamos con los acabados y remodelación de tu vivienda. Aquí podemos avanzar con una cotización ilustrativa.";
@@ -460,6 +466,8 @@ function preguntar(paso, vars, intro, ctx) {
       return [t(bloque(intro, "En qué ciudad está ubicada tu vivienda?"))];
     case "ciudad_lista":
       return [{ tipo: "lista", body: bloque(intro, "En qué ciudad está la vivienda?"), boton: "Ver ciudades", filas: CIUDADES_LISTA }];
+    case "ciudad_municipio":
+      return [{ tipo: "lista", body: bloque(intro, "En qué municipio está la vivienda?"), boton: "Ver municipios", filas: MUNICIPIOS_LISTA }];
     case "tipo_proyecto":
       return [{ tipo: "lista", body: bloque(intro, "Qué te gustaría hacer en tu proyecto?"), boton: "Ver opciones", filas: OPCIONES_TIPO }];
     case "presupuesto":
@@ -529,7 +537,7 @@ const ACLARACIONES = {
 function siguientePaso(v) {
   if (v.cerrado) return "cerrado";
   if (!v.nombre) return v.nombre_perfil && !v.nombre_rechazado ? "nombre_confirmar" : "nombre";
-  if (!v.ciudad) return v.ciudad_intentos >= 1 ? "ciudad_lista" : "ciudad";
+  if (!v.ciudad) return v.ciudad_municipio ? "ciudad_municipio" : v.ciudad_intentos >= 1 ? "ciudad_lista" : "ciudad";
   const cob = coberturaDe(v.ciudad);
   if (cob === "fuera") return "cerrar_cobertura";
   if (!v.tipo_proyecto) return "tipo_proyecto";
@@ -557,7 +565,7 @@ function mensajeCierre(tipo, v) {
   const nombre = v.nombre ? v.nombre.split(" ")[0] : "";
   switch (tipo) {
     case "cerrar_cobertura":
-      return `muchas gracias por escribirnos${nombre ? ", " + nombre : ""} 🙏 por ahora no estamos llegando a ${v.ciudad === "Otra" ? "tu ciudad" : v.ciudad} — trabajamos en Bogotá, Soacha y, solo para carpintería, en algunos municipios cercanos. Ojalá podamos acompañarte más adelante, que estés muy bien!`;
+      return `muchas gracias por escribirnos${nombre ? ", " + nombre : ""} 🙏 por ahora no estamos llegando a ${v.ciudad === "Otra" ? "tu ciudad" : v.ciudad} — trabajamos en Bogotá, Soacha y, solo para carpintería, en algunos municipios de la Sabana. Ojalá podamos acompañarte más adelante, que estés muy bien!`;
     case "cerrar_cobertura_tipo":
       return `gracias por contarme${nombre ? ", " + nombre : ""}. En ${v.ciudad} por ahora solo estamos haciendo proyectos de carpintería (cocina, closets, muebles a medida), así que para ${v.tipo_proyecto} no tenemos cobertura allá todavía. Si en algún momento quieres cotizar carpintería, aquí estoy 😊`;
     case "cerrar_presupuesto_carp":
@@ -743,16 +751,18 @@ function interpretar(paso, texto, opcion, entrada, v, ctx) {
       return pregunta || entrada.tieneMedia ? { desvio: true } : { aclarar: "nombre" };
     }
     case "ciudad":
-    case "ciudad_lista": {
+    case "ciudad_lista":
+    case "ciudad_municipio": {
       if (opcion === "c_otra") return { ok: true, set: { ciudad: "Otra" } };
+      if (opcion === "c_municipio") return { ok: true, set: { ciudad_municipio: true }, intro: "" };
       if (opcion && opcion.startsWith("c_")) {
-        const fila = CIUDADES_LISTA.find((c) => c.id === opcion);
+        const fila = [...CIUDADES_LISTA, ...MUNICIPIOS_LISTA].find((c) => c.id === opcion);
         if (fila) return { ok: true, set: { ciudad: fila.title } };
       }
       const ciudad = buscarCiudad(texto);
       if (ciudad) return { ok: true, set: { ciudad } };
       if (pregunta || entrada.tieneMedia || norm(texto).split(" ").length > 8) return { desvio: true };
-      return { aclarar: "ciudad", pasoAclaracion: "ciudad_lista", set: { ciudad_intentos: 1 } };
+      return { aclarar: "ciudad", pasoAclaracion: paso === "ciudad_municipio" ? "ciudad_municipio" : "ciudad_lista", set: { ciudad_intentos: 1 } };
     }
     case "tipo_proyecto": {
       const tipo = interpretarTipo(texto, opcion);

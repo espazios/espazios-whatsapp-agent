@@ -216,9 +216,43 @@ test("ciudad no reconocida: pasa a lista de ciudades", () => {
   c.turno("hola"); c.turno("si");
   const r = c.turno("villa del rosario");
   assert.equal(r.acciones[0].tipo, "lista");
+  assert.ok(r.acciones[0].filas.length <= 10, "WhatsApp: máximo 10 filas");
   assert.equal(c.vars.paso, "ciudad_lista");
   c.turno("Otra ciudad", { opcion: "c_otra" });
   assert.equal(c.vars.cerrado, "cerrar_cobertura");
+});
+
+test("lista de ciudades -> municipio cercano -> segunda lista con los 10 municipios", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si"); c.turno("no sé cómo se llama");
+  let r = c.turno("Municipio cercano", { opcion: "c_municipio" });
+  assert.equal(c.vars.paso, "ciudad_municipio");
+  assert.equal(r.acciones[0].filas.length, 10);
+  r = c.turno("Sopó", { opcion: "c_sopo" });
+  assert.equal(c.vars.ciudad, "Sopó");
+  assert.equal(r.acciones[0].tipo, "lista"); // sigue con tipo de proyecto
+});
+
+// Criterios de aceptación de cobertura (confirmados por el usuario 2026-11-24):
+// - Carpintería: Bogotá, Soacha y 10 municipios de la Sabana.
+// - Solo Obra Blanca, Intermedio y Remodelación Total: solo Bogotá y Soacha.
+test("criterios de cobertura por ciudad y tipo de proyecto", () => {
+  const TIPOS = { "Carpintería": "tp_carpinteria", "Solo Obra Blanca": "tp_obra", "Intermedio": "tp_intermedio", "Remodelación Total": "tp_total" };
+  const COMPLETA = ["Bogotá", "Kennedy", "Suba", "Soacha", "Ciudad Verde"];
+  const SOLO_CARP = ["Chía", "Mosquera", "Madrid", "Cota", "Zipaquirá", "Cajicá", "La Calera", "Funza", "Facatativá", "Faca", "Sopó"];
+  const FUERA = ["Tenjo", "Fusagasugá", "Medellín"];
+  const califica = (ciudad, tipo) => {
+    const c = conversacion();
+    c.turno("hola"); c.turno("si"); c.turno(ciudad);
+    if (!c.vars.cerrado) c.turno(tipo, { opcion: TIPOS[tipo] });
+    return !c.vars.cerrado;
+  };
+  for (const ciudad of COMPLETA) for (const tipo of Object.keys(TIPOS)) assert.ok(califica(ciudad, tipo), `${ciudad} + ${tipo} debe calificar`);
+  for (const ciudad of SOLO_CARP) {
+    assert.ok(califica(ciudad, "Carpintería"), `${ciudad} + Carpintería debe calificar`);
+    for (const tipo of ["Solo Obra Blanca", "Intermedio", "Remodelación Total"]) assert.ok(!califica(ciudad, tipo), `${ciudad} + ${tipo} NO debe calificar`);
+  }
+  for (const ciudad of FUERA) for (const tipo of Object.keys(TIPOS)) assert.ok(!califica(ciudad, tipo), `${ciudad} + ${tipo} NO debe calificar`);
 });
 
 test("objeción de presupuesto en 2 etapas", () => {
