@@ -21,6 +21,7 @@
 
 const RAILWAY_BASE = "https://espazios-whatsapp-agent-production.up.railway.app";
 const KAPSO_META_BASE = "https://api.kapso.ai/meta/whatsapp/v24.0";
+const KAPSO_PLATFORM_BASE = "https://api.kapso.ai/platform/v1";
 const CALENDAR_URL =
   "https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ2JoOnboCFBDmNXuAjfh7hXLnAO2dqw9dMteg9N1iZLpHxoVL0ODnFWU2zIrfQN9vOKKxPyaQMT";
 const DIRECCION_OFICINA = "Carrera 73 Bis # 49A - 73, Normandía, Bogotá";
@@ -501,14 +502,35 @@ function resultadoInterpreteDe(flowEvents, desde) {
   for (const e of evs) {
     if (limite && Date.parse(e.created_at || e.createdAt || 0) < limite) continue;
     const p = e.payload || {};
-    const candidatos = [e.edge_label, e.edgeLabel, p.edge_label, p.edgeLabel, p.next_edge, p.selected_edge,
-      p.selected_condition, p.decision, p.label, p.result, p.condition, p.chosen, p.response];
+    const r = p.reasoning || {};
+    // Kapso guarda la opcion elegida en edge_label (evento) y en
+    // payload.selected_label; la respuesta cruda del modelo en payload.reasoning.response.
+    const candidatos = [e.edge_label, e.edgeLabel, p.selected_label, p.edge_label, p.edgeLabel, p.next_edge, p.selected_edge,
+      p.selected_condition, p.decision, p.label, p.result, p.condition, p.chosen, p.response, r.response];
     for (const c of candidatos) {
       const t = typeof c === "string" ? c.trim() : c && typeof c === "object" ? (c.label || c.edge_label || "") : "";
       if (t && t in ETIQUETAS_INTERPRETE) return t;
     }
   }
   return null;
+}
+
+async function decisionDesdeApi(env, executionId, desde) {
+  if (!executionId || !env || !env.KAPSO_API_KEY) return null;
+  try {
+    const res = await fetch(`${KAPSO_PLATFORM_BASE}/workflow_executions/${executionId}/events?event_type=decision_evaluated&limit=10`, {
+      headers: { "X-API-Key": env.KAPSO_API_KEY },
+    });
+    if (!res.ok) {
+      console.log("interprete api", res.status);
+      return null;
+    }
+    const json = await res.json();
+    return resultadoInterpreteDe(json.data || [], desde);
+  } catch (err) {
+    console.log("interprete api error", String(err));
+    return null;
+  }
 }
 
 function saludo(vars, nombrePerfil, nombreDicho) {
@@ -1208,10 +1230,14 @@ async function handler(request, env) {
     ahora: new Date(),
     resultadoInterprete: vars.interpretacion_pendiente ? resultadoInterpreteDe(body.flow_events, vars.interpretar_desde) : null,
   };
+  if (vars.interpretacion_pendiente && !ctx.resultadoInterprete) {
+    // Respaldo: los flow_events que llegan a la funcion pueden no traer todavia
+    // la decision del interprete. Se consulta directo a la API de Kapso.
+    const executionId = system.flow_execution_id || system.workflow_execution_id || system.execution_id || null;
+    ctx.resultadoInterprete = await decisionDesdeApi(env, executionId, vars.interpretar_desde);
+  }
   if (vars.interpretacion_pendiente) {
-    // Diagnostico: estructura real de los eventos de decision (para ajustar el lector si hace falta).
-    const decisiones = (body.flow_events || []).filter((e) => /decision/.test(String(e.event_type || e.eventType || "")));
-    console.log("interprete", ctx.resultadoInterprete, JSON.stringify(decisiones.slice(-2)).slice(0, 1500));
+    console.log("interprete", vars.campo_interpretar, ctx.resultadoInterprete || "sin_resultado");
   }
 
   const res = procesar(vars, entrada, ctx);

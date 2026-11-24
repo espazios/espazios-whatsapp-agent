@@ -487,3 +487,21 @@ test("lector de la decisión: usa campos explícitos, ignora el prompt con todas
   const delMotor = { event_type: "decision_evaluated", created_at: "2026-11-24T15:00:03Z", edge_label: "esperar" };
   assert.equal(M.resultadoInterpreteDe([delMotor, ev], desde), "tipo_intermedio", "ignora las decisiones del motor");
 });
+
+test("lector de la decisión: forma real del evento de Kapso (payload.selected_label, sin edge_label)", () => {
+  // Copiado de la prueba real del 2026-11-24 ("Ogota"), sin el prompt.
+  const desde = "2026-11-24T19:33:04.072Z";
+  const real = {
+    event_type: "decision_evaluated",
+    created_at: "2026-11-24T16:33:05-03:00",
+    payload: {
+      reasoning: { model: "claude-haiku-5-5", prompt: "... no_es_respuesta ... ciudad_soacha ...", response: "ciudad_bogota", duration_ms: 677 },
+      duration_ms: 698, selected_label: "ciudad_bogota", step_identifier: "interprete",
+    },
+  };
+  assert.equal(M.resultadoInterpreteDe([real], desde), "ciudad_bogota");
+  const soloRespuesta = { ...real, payload: { reasoning: { response: "ciudad_soacha" } } };
+  assert.equal(M.resultadoInterpreteDe([soloRespuesta], desde), "ciudad_soacha");
+  const delMotor = { event_type: "decision_evaluated", created_at: "2026-11-24T16:33:07-03:00", payload: { reasoning: { response: { next_edge: "esperar" } }, selected_label: "esperar" } };
+  assert.equal(M.resultadoInterpreteDe([delMotor, real], desde), "ciudad_bogota");
+});
