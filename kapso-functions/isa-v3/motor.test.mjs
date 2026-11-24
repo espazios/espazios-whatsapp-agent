@@ -594,3 +594,31 @@ test("conjunto: si solo repite la ciudad, se vuelve a preguntar; un barrio sí s
   r = c.turno("Bosa");
   assert.equal(c.vars.conjunto_o_barrio, "Bosa");
 });
+
+test("D1: crea la columna version una vez y marca cada fila con 'v3' (insert y update)", async () => {
+  const sentencias = [];
+  let existe = false;
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...args) { this.args = args; return this; },
+        async run() {
+          sentencias.push({ sql, args: this.args });
+          if (/ALTER TABLE/.test(sql) && sentencias.filter((x) => /ALTER/.test(x.sql)).length > 1) throw new Error("duplicate column name: version");
+          if (/^INSERT/.test(sql)) existe = true;
+        },
+        async first() { return existe ? { telefono: "57300" } : null; },
+      };
+    },
+  };
+  const g = sandbox.__isa3.guardarEnD1;
+  await g({ DB: db }, "leads_tibios_isa_v2", ["nombre", "ciudad"], { nombre: "Ana", ciudad: "Bogotá" }, "57300", "ana", "conv1");
+  await g({ DB: db }, "leads_tibios_isa_v2", ["nombre", "ciudad"], { nombre: "Ana", ciudad: "Soacha" }, "57300", null, "conv1");
+  const ins = sentencias.find((x) => /^INSERT/.test(x.sql));
+  assert.match(ins.sql, /version/);
+  assert.ok(ins.args.includes("v3"));
+  const upd = sentencias.find((x) => /^UPDATE/.test(x.sql));
+  assert.match(upd.sql, /version = \?/);
+  assert.ok(upd.args.includes("v3"));
+  assert.equal(sentencias.filter((x) => /ALTER/.test(x.sql)).length, 1, "el ALTER corre una sola vez por tabla");
+});

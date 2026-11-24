@@ -1242,21 +1242,35 @@ async function postRailway(ruta, payload) {
   return null;
 }
 
+// Version de Isa que escribe la fila. Isa v2 no escribe esta columna: una
+// fila con version vacia viene de v2 (o es anterior a esta columna).
+const VERSION_ISA = "v3";
+const columnaVersionLista = new Set();
+async function asegurarColumnaVersion(env, tabla) {
+  if (columnaVersionLista.has(tabla)) return;
+  try {
+    await env.DB.prepare(`ALTER TABLE ${tabla} ADD COLUMN version TEXT`).run();
+  } catch (err) {
+    // "duplicate column name": ya existe, es lo esperado despues de la primera vez
+  }
+  columnaVersionLista.add(tabla);
+}
+
 async function guardarEnD1(env, tabla, columnas, datos, telefono, username, conversationId) {
   if (!env.DB || !telefono) return;
+  await asegurarColumnaVersion(env, tabla);
   const presentes = columnas.filter((c) => datos[c] !== undefined && datos[c] !== null && datos[c] !== "");
   const ahora = new Date().toISOString();
   const existente = await env.DB.prepare(`SELECT telefono FROM ${tabla} WHERE telefono = ?`).bind(telefono).first();
-  const campos = username ? [...presentes, "username"] : presentes;
-  const valor = (c) => (c === "username" ? username : datos[c]);
+  const campos = [...presentes, ...(username ? ["username"] : []), "version"];
+  const valor = (c) => (c === "username" ? username : c === "version" ? VERSION_ISA : datos[c]);
   if (existente) {
-    if (!campos.length) return;
     await env.DB.prepare(`UPDATE ${tabla} SET ${campos.map((c) => `${c} = ?`).join(", ")}, actualizado_en = ?, conversation_id = ? WHERE telefono = ?`)
       .bind(...campos.map(valor), ahora, conversationId, telefono).run();
   } else {
-    const cols = ["telefono", ...presentes, "username", "conversation_id", "creado_en", "actualizado_en"];
+    const cols = ["telefono", ...presentes, "username", "version", "conversation_id", "creado_en", "actualizado_en"];
     await env.DB.prepare(`INSERT INTO ${tabla} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`)
-      .bind(telefono, ...presentes.map((c) => datos[c]), username, conversationId, ahora, ahora).run();
+      .bind(telefono, ...presentes.map((c) => datos[c]), username, VERSION_ISA, conversationId, ahora, ahora).run();
   }
 }
 
@@ -1363,4 +1377,4 @@ async function handler(request, env) {
 }
 
 // Para los tests (node:vm). No afecta la ejecucion en Kapso.
-globalThis.__isa3 = { resultadoInterpreteDe, opcionDesdeEtiqueta, ETIQUETAS_INTERPRETE, procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, franjaEnTexto, interpretarDia, payloadMensaje };
+globalThis.__isa3 = { resultadoInterpreteDe, opcionDesdeEtiqueta, ETIQUETAS_INTERPRETE, procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, franjaEnTexto, interpretarDia, payloadMensaje, guardarEnD1 };
