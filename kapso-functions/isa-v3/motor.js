@@ -35,7 +35,7 @@ const COBERTURA_SOLO_CARPINTERIA = ["Mosquera", "Madrid", "Chía", "Cota", "Zipa
 
 // alias normalizado (sin tildes, minusculas) -> ciudad canonica
 const ALIAS_CIUDAD = {
-  bogota: "Bogotá", "bogota dc": "Bogotá", "bogota d c": "Bogotá", bta: "Bogotá", bogot: "Bogotá",
+  bogota: "Bogotá", "bogota dc": "Bogotá", "bogota d c": "Bogotá", bta: "Bogotá", bgta: "Bogotá", bogta: "Bogotá", bogot: "Bogotá", bog: "Bogotá",
   // localidades y sectores de Bogota que la gente da como "ciudad"
   usaquen: "Bogotá", chapinero: "Bogotá", "san cristobal": "Bogotá", usme: "Bogotá", tunjuelito: "Bogotá",
   bosa: "Bogotá", kennedy: "Bogotá", fontibon: "Bogotá", engativa: "Bogotá", suba: "Bogotá",
@@ -189,7 +189,7 @@ function interpretarTipo(texto, opcionId) {
   const n = norm(texto).replace(/[.!]/g, "");
   const num = n.match(/^(?:opcion|la|el|numero)?\s*([1-4])\b/);
   if (num) return Object.values(TIPOS)[Number(num[1]) - 1];
-  if (/obra blanca|solo acabados|acabados fijos|solo obra/.test(n)) return "Solo Obra Blanca";
+  if (/obra blanca|\bblanca\b|solo acabados|acabados fijos|solo obra/.test(n)) return "Solo Obra Blanca";
   if (/intermedi/.test(n)) return "Intermedio";
   if (/total|completa|completo|todo|full|integral/.test(n)) return "Remodelación Total";
   if (/carpinter|closet|cocina|mueble|puertas/.test(n)) return "Carpintería";
@@ -626,6 +626,11 @@ function procesar(varsIn, entrada, ctx) {
   // ---- 3) Hay mensaje nuevo del cliente ------------------------------------
   const texto = entrada.texto || "";
   const opcion = entrada.opcionId || null;
+  // El agente de desvios responde a ESTE mensaje. Si un mensaje llega mientras
+  // el agente corre, el motor lo lee directo y last_user_input quedaria viejo
+  // (bug visto en la primera prueba real: la IA respondio dos veces lo mismo).
+  asignar("last_user_input", texto);
+  asignar("mensaje_cliente", texto);
 
   if (!opcion && pideHumano(texto)) {
     acciones.push({ tipo: "texto", body: "claro que sí, ya le aviso a una persona del equipo para que continúe contigo por aquí 😊" });
@@ -861,7 +866,19 @@ function interpretar(paso, texto, opcion, entrada, v, ctx) {
     }
     case "agendado_link": {
       const n = norm(texto);
-      if (/\b(ya|listo|agende|agendado|hecho|separe|reserve|quedo)\b/.test(n) && !pregunta) {
+      // Cambia de opinion o pide el link de nuevo: se resuelve sin IA.
+      if (/llamad|llamen|llamame|telefon/.test(n)) {
+        return { ok: true, set: { tipo_agendamiento: "llamada", paso_agenda: "llamada_dia" }, intro: "de una, mejor te agendo una llamada." };
+      }
+      const confirma = /\b(ya|listo|agende|agendado|hecho|separe|reserve|quedo)\b/.test(n) && !pregunta && !/\bya no\b/.test(n);
+      if (!confirma) {
+        if (/virtual|meet|video|zoom|online/.test(n)) return agendarReunion("reunion_virtual", v);
+        if (/presencial|oficina|en persona/.test(n)) return agendarReunion("reunion_presencial", v);
+        if (/donde|link|enlace|agendar|agendo|no me (llego|aparece|sale)|no veo|no encuentro/.test(n)) {
+          return agendarReunion(v.tipo_agendamiento === "reunion_presencial" ? "reunion_presencial" : "reunion_virtual", v);
+        }
+      }
+      if (confirma) {
         return {
           ok: true,
           set: { paso: "agendado", paso_agenda: "agendado" },

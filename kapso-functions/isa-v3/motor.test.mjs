@@ -132,6 +132,30 @@ test("pedir detalle de otro paquete por botón y luego agendar llamada con lista
   assert.equal(r.edge, "desvio");
 });
 
+test("después del link: cambiar a llamada, pedir el link otra vez o cambiar a virtual se resuelve sin IA", () => {
+  const base = { paso: "agendado_link", paso_agenda: "agendado_link", tipo_agendamiento: "reunion_presencial", nombre: "Yonathan Murillo", estimado_enviado: true, aviso_datos: true, ciudad: "Bogotá", tipo_proyecto: "Solo Obra Blanca", presupuesto: "$32", conjunto_o_barrio: "Centrik Town", m2: 40, banos: 2, plazo: "10 días", correo: "a@b.co", tibio_firma: "Yonathan Murillo|Bogotá|Solo Obra Blanca|$32" };
+  let r = M.procesar(base, { texto: "Mejor virtual" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.edge, "esperar");
+  assert.equal(r.vars.tipo_agendamiento, "reunion_virtual");
+  assert.ok(r.acciones.some((a) => a.tipo === "cta"));
+  r = M.procesar(base, { texto: "Y dónde puedo agendar ?" }, { perfil: "", ahora: AHORA });
+  assert.ok(r.acciones.some((a) => a.tipo === "cta"), "reenvía el link");
+  r = M.procesar(base, { texto: "Prefiero llamada" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.paso, "llamada_dia");
+  assert.equal(r.acciones[0].tipo, "lista");
+  r = M.procesar(base, { texto: "ya agendé la virtual" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.paso, "agendado", "confirmación, no reenvío del link");
+  assert.ok(!r.acciones.some((a) => a.tipo === "cta"));
+  r = M.procesar(base, { texto: "Oye y que es Espazios?" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.edge, "desvio");
+  assert.equal(r.vars.last_user_input, "Oye y que es Espazios?", "el agente recibe el mensaje nuevo");
+});
+
+test("reconoce 'Bgta' y 'Quiero blanca'", () => {
+  assert.equal(M.buscarCiudad("Está en Bgta"), "Bogotá");
+  assert.equal(M.interpretarTipo("Quiero blanca", null), "Solo Obra Blanca");
+});
+
 test("reunión virtual comparte link de Calendar y guarda tipo_agendamiento", () => {
   let vars = { paso: "tipo_agendamiento", paso_agenda: "tipo_agendamiento", nombre: "Ana", estimado_enviado: true, aviso_datos: true };
   const r = M.procesar(vars, { texto: "Reunión virtual", opcionId: "ag_virtual" }, { perfil: "", ahora: AHORA });

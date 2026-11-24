@@ -281,3 +281,22 @@ ciudad escrita la lista es de 2 pasos: Bogotá / Soacha / Municipio cercano /
 Otra ciudad, y "Municipio cercano" abre la lista de los 10 municipios.
 **Diferencia con Isa v2:** el prompt de v2 solo tiene 7 municipios (sin
 Funza, Facatativá ni Sopó).
+
+### Primera prueba real (2026-11-24, +57 313 8756205) y arreglos
+
+Funcionó sin IA: saludo, nombre, ciudad con lista, tipo de proyecto, presupuesto,
+conjunto, m², baños con botones, plazo, correo, **estimado + detalle del paquete
+elegido con botones** (confirmado: WhatsApp acepta la imagen de Railway como
+encabezado del mensaje con botones), botones de agendamiento y link de Calendar.
+
+Fallas encontradas y corregidas:
+1. Después de compartir el link, "mejor virtual", "dónde agendo?" y "prefiero
+   llamada" se iban a la IA, que inventó que "un Ejecutivo se comunicará para
+   confirmar día y hora". Ahora el motor los resuelve: reenvía el link o arranca
+   la lista de días de la llamada.
+2. Si llegaba un mensaje mientras la IA respondía, la IA contestaba el mensaje
+   anterior (respuesta duplicada). Ahora el motor pasa `mensaje_cliente` y
+   `last_user_input` al agente con el mensaje correcto.
+3. La IA terminaba respuestas con preguntas y mencionó "opciones de pago".
+   Reglas nuevas en el prompt.
+4. Reconoce "Bgta" como Bogotá y "Quiero blanca" como Solo Obra Blanca.
