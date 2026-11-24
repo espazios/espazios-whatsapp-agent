@@ -535,6 +535,48 @@ async function decisionDesdeApi(env, executionId, desde) {
   }
 }
 
+// Normaliza una fila de la base (v2 o v3) a los formatos que usa el motor.
+// Un dato que no se pueda interpretar se descarta y el motor lo vuelve a preguntar.
+function datosLeadPrevio(fila) {
+  if (!fila || typeof fila !== "object") return null;
+  const d = {};
+  const txt = (x) => (x === undefined || x === null ? "" : String(x).trim());
+  const nombre = nombrePerfilValido(txt(fila.nombre));
+  if (nombre) d.nombre = nombre;
+  const ciudad = txt(fila.ciudad) ? buscarCiudad(txt(fila.ciudad)) : null;
+  if (ciudad) d.ciudad = ciudad;
+  const tipo = txt(fila.tipo_proyecto) ? interpretarTipo(txt(fila.tipo_proyecto), null) : null;
+  if (tipo) d.tipo_proyecto = tipo;
+  const p = txt(fila.presupuesto) ? interpretarPresupuesto(txt(fila.presupuesto)) : null;
+  if (p && p.valor) d.presupuesto = formatoMillones(p.valor);
+  if (txt(fila.conjunto_o_barrio)) d.conjunto_o_barrio = txt(fila.conjunto_o_barrio).slice(0, 120);
+  const m = txt(fila.m2) ? interpretarM2(txt(fila.m2)) : null;
+  if (m && m.valor) d.m2 = m.valor;
+  const b = Number(fila.banos);
+  if (b === 1 || b === 2) d.banos = b;
+  if (txt(fila.plazo)) d.plazo = txt(fila.plazo).slice(0, 60);
+  const correo = interpretarCorreo(txt(fila.correo));
+  if (correo) d.correo = correo;
+  if (!Object.keys(d).length) return null;
+  if (d.nombre) d.aviso_datos = true; // ya habia aceptado el tratamiento de datos al dar su nombre y datos
+  return { datos: d, agendado: !!txt(fila.tipo_agendamiento) };
+}
+
+async function buscarLeadPrevio(env, id) {
+  if (!env.DB || !id) return null;
+  try {
+    const tibio = await env.DB.prepare("SELECT * FROM leads_tibios_isa_v2 WHERE telefono = ?").bind(id).first().catch(() => null);
+    const completo = await env.DB.prepare("SELECT * FROM leads_isa_v2 WHERE telefono = ?").bind(id).first().catch(() => null);
+    if (!tibio && !completo) return null;
+    const fila = { ...(tibio || {}) };
+    for (const [k, val] of Object.entries(completo || {})) if (val !== null && val !== undefined && val !== "") fila[k] = val;
+    return fila;
+  } catch (err) {
+    console.log("lead previo error", String(err));
+    return null;
+  }
+}
+
 function saludo(vars, nombrePerfil, nombreDicho) {
   const gancho = "hablas con Isa de Espazios — te acompañamos con los acabados y remodelación de tu vivienda. Aquí podemos avanzar con una cotización ilustrativa.";
   if (nombreDicho) return `Hola ${nombreDicho.split(" ")[0]}! ${gancho}`;
@@ -684,6 +726,24 @@ function procesar(varsIn, entrada, ctx) {
 
   // ---- 1) Primer mensaje de la conversacion: saludo ------------------------
   if (!v.paso) {
+    // Cliente que ya habia hablado con Isa (v2 o una conversacion anterior de v3):
+    // se cargan los datos guardados en la base y se sigue desde lo que falte.
+    const previo = datosLeadPrevio(ctx.leadPrevio);
+    if (previo) {
+      for (const [k, val] of Object.entries(previo.datos)) asignar(k, val);
+      if (ctx.perfil && nombrePerfilValido(ctx.perfil)) asignar("nombre_perfil", nombrePerfilValido(ctx.perfil));
+      asignar("retomado", true);
+      const primerNombre = v.nombre ? " " + v.nombre.split(" ")[0] : "";
+      if (previo.agendado) {
+        asignar("estimado_enviado", true);
+        asignar("paso_agenda", "agendado");
+        asignar("paso", "agendado");
+        acciones.push({ tipo: "texto", body: `Hola${primerNombre}! qué bueno saludarte de nuevo 😊 soy Isa de Espazios. Cuéntame en qué te puedo ayudar.` });
+        return { vars: set, acciones, edge: "esperar" };
+      }
+      acciones.push({ tipo: "texto", body: `Hola${primerNombre}! qué bueno tenerte de vuelta 😊 soy Isa de Espazios. Ya tengo los datos que me compartiste la vez pasada, así que seguimos desde donde quedamos.` });
+      return finalizar(v, set, acciones, ctx, { intro: "" });
+    }
     const nombrePerfil = nombrePerfilValido(ctx.perfil);
     const nombreDicho = entrada ? extraerNombreDeTexto(entrada.texto) : null;
     if (nombrePerfil) asignar("nombre_perfil", nombrePerfil);
@@ -1300,13 +1360,15 @@ async function handler(request, env) {
     console.log("interprete", vars.campo_interpretar, ctx.resultadoInterprete || "sin_resultado");
   }
 
+  const telefono = context.phone_number || contact.wa_id || conversation.phone_number || null;
+  const bsuid = contact.business_scoped_user_id || context.whatsapp_business_scoped_user_id || conversation.business_scoped_user_id || null;
+  if (!vars.paso) ctx.leadPrevio = await buscarLeadPrevio(env, telefono || bsuid);
+
   const res = procesar(vars, entrada, ctx);
   const nuevasVars = { ...res.vars };
   if (ultimoAt) nuevasVars.ultimo_inbound_at = ultimoAt;
   const estado = { ...vars, ...nuevasVars };
 
-  const telefono = context.phone_number || contact.wa_id || conversation.phone_number || null;
-  const bsuid = contact.business_scoped_user_id || context.whatsapp_business_scoped_user_id || conversation.business_scoped_user_id || null;
   const destino = {
     phoneNumberId: (system.whatsapp_config && system.whatsapp_config.phone_number_id) || env.PHONE_NUMBER_ID,
     ...(telefono ? { to: telefono } : {}),
@@ -1377,4 +1439,4 @@ async function handler(request, env) {
 }
 
 // Para los tests (node:vm). No afecta la ejecucion en Kapso.
-globalThis.__isa3 = { resultadoInterpreteDe, opcionDesdeEtiqueta, ETIQUETAS_INTERPRETE, procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, franjaEnTexto, interpretarDia, payloadMensaje, guardarEnD1 };
+globalThis.__isa3 = { resultadoInterpreteDe, opcionDesdeEtiqueta, ETIQUETAS_INTERPRETE, procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, franjaEnTexto, interpretarDia, payloadMensaje, guardarEnD1, datosLeadPrevio };

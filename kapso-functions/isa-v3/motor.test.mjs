@@ -22,7 +22,7 @@ function conversacion(perfil = "Dago M L") {
   const historial = [];
   const turno = (texto, extra = {}) => {
     const entrada = texto === null ? null : { texto, opcionId: extra.opcion || null, tieneMedia: !!extra.media };
-    const r = M.procesar(vars, entrada, { perfil, ahora: AHORA, resultadoInterprete: extra.interprete || null });
+    const r = M.procesar(vars, entrada, { perfil, ahora: AHORA, resultadoInterprete: extra.interprete || null, leadPrevio: extra.leadPrevio || null });
     vars = { ...vars, ...r.vars };
     historial.push(r);
     return r;
@@ -621,4 +621,47 @@ test("D1: crea la columna version una vez y marca cada fila con 'v3' (insert y u
   assert.match(upd.sql, /version = \?/);
   assert.ok(upd.args.includes("v3"));
   assert.equal(sentencias.filter((x) => /ALTER/.test(x.sql)).length, 1, "el ALTER corre una sola vez por tabla");
+});
+
+test("retoma: lead tibio de v2 -> saluda de vuelta y sigue con lo que falta (conjunto)", () => {
+  const c = conversacion("Ana Pérez");
+  const r = c.turno("Hola", { leadPrevio: { telefono: "57300", nombre: "Ana Pérez", ciudad: "Bogotá", tipo_proyecto: "Remodelación Total", presupuesto: "$30", version: null } });
+  assert.match(textos(r), /qué bueno tenerte de vuelta/);
+  assert.match(textos(r), /conjunto o barrio/);
+  assert.equal(c.vars.nombre, "Ana Pérez");
+  assert.equal(c.vars.presupuesto, "$30");
+  assert.equal(c.vars.retomado, true);
+  assert.doesNotMatch(textos(r), /Hablo con/);
+});
+
+test("retoma: lead completo de v2 sin agendar -> genera el estimado de una vez", () => {
+  const c = conversacion();
+  const r = c.turno("hola", { leadPrevio: { nombre: "Luz Adriana", ciudad: "Bogota", tipo_proyecto: "Remodelacion completa", presupuesto: "30 millones",
+    conjunto_o_barrio: "Bosa recreo", m2: "37.78", banos: 2, plazo: "Inmediato", correo: "Luz@Outlook.com" } });
+  assert.equal(c.vars.m2, 38);
+  assert.equal(c.vars.correo, "luz@outlook.com");
+  assert.deepEqual(r.acciones.filter((a) => a.op).map((a) => a.op), ["guardar_tibio", "guardar_lead", "estimado"]);
+});
+
+test("retoma: lead que ya agendó -> saludo y queda en 'agendado' (no repregunta)", () => {
+  const c = conversacion();
+  const r = c.turno("hola", { leadPrevio: { nombre: "Yesid Pintor", ciudad: "Bogotá", tipo_proyecto: "Intermedio", presupuesto: "$25", correo: "y@x.com", tipo_agendamiento: "llamada" } });
+  assert.equal(c.vars.paso, "agendado");
+  assert.match(textos(r), /saludarte de nuevo/);
+  const r2 = c.turno("tengo una pregunta sobre la garantía?");
+  assert.equal(r2.edge, "desvio");
+});
+
+test("retoma: datos inválidos de la base se descartan y se vuelven a preguntar", () => {
+  const c = conversacion("Pedro");
+  const r = c.turno("hola", { leadPrevio: { nombre: "Pedro Gómez", ciudad: "xyz", presupuesto: "no sé" } });
+  assert.equal(c.vars.ciudad, undefined);
+  assert.equal(c.vars.presupuesto, undefined);
+  assert.match(textos(r), /ciudad/);
+});
+
+test("sin lead previo: saludo normal", () => {
+  const c = conversacion("Dago M L");
+  const r = c.turno("Hola");
+  assert.match(textos(r), /Hablo con Dago M L\?/);
 });
