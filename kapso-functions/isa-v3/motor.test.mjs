@@ -505,3 +505,72 @@ test("lector de la decisión: forma real del evento de Kapso (payload.selected_l
   const delMotor = { event_type: "decision_evaluated", created_at: "2026-11-24T16:33:07-03:00", payload: { reasoning: { response: { next_edge: "esperar" } }, selected_label: "esperar" } };
   assert.equal(M.resultadoInterpreteDe([delMotor, real], desde), "ciudad_bogota");
 });
+
+// Lleva una conversación hasta la pregunta del día de la llamada.
+function hastaDiaLlamada() {
+  const c = conversacion("Yonathan Murillo");
+  c.turno("Hola"); c.turno("Sip"); c.turno("Bogotá");
+  c.turno("Carpintería", { opcion: "tp_carpinteria" });
+  c.turno("35palos"); c.turno("Centrik Town"); c.turno("Cuarenta");
+  c.turno("2 baños", { opcion: "b_2" }); c.turno("Ya mismo"); c.turno("y@gmail.com");
+  c.vars.estimado_enviado = true; // lo marca el handler al enviar las imágenes
+  c.turno("Quiero agendar");
+  c.turno("Llamada", { opcion: "ag_llamada" });
+  assert.equal(c.vars.paso, "llamada_dia");
+  return c;
+}
+
+test("llamada: 'hoy' explica que el primer día es mañana y vuelve a mostrar los días (sin IA)", () => {
+  const c = hastaDiaLlamada();
+  const r = c.turno("Hoy");
+  assert.equal(r.edge, "esperar");
+  assert.match(textos(r), /para hoy ya no alcanzamos/);
+  assert.equal(r.acciones[0].tipo, "lista");
+  assert.equal(c.vars.paso, "llamada_dia");
+});
+
+test("llamada: '¿y a qué hora?' antes del día lo responde el motor (sin IA)", () => {
+  const c = hastaDiaLlamada();
+  const r = c.turno("Y a qué hora ?");
+  assert.equal(r.edge, "esperar");
+  assert.match(textos(r), /primero elige el día/);
+});
+
+test("llamada: día y hora en el mismo mensaje agenda de una vez", () => {
+  const c = hastaDiaLlamada();
+  const r = c.turno("Eh, quiero agendar para mañana 25 a las 3:00 p.m., por favor.");
+  assert.equal(c.vars.paso, "agendado");
+  assert.equal(c.vars.fecha_llamada, "2026-11-25");
+  assert.equal(c.vars.hora_llamada, "2 a 4 pm");
+  assert.match(textos(r), /quedó agendada tu llamada/);
+  assert.ok(r.acciones.some((a) => a.op === "guardar_lead"));
+});
+
+test("llamada: el número del día no se confunde con la hora", () => {
+  assert.equal(M.franjaEnTexto("el jueves 26"), null);
+  assert.equal(M.franjaEnTexto("mañana 25 a las 3:00 p.m.").titulo, "2 a 4 pm");
+  assert.equal(M.franjaEnTexto("el viernes a las 9").titulo, "8 a 10 am");
+  assert.equal(M.franjaEnTexto("tipo 11am").titulo, "10 am a 12 m");
+});
+
+test("audio con transcripción de Kapso se procesa como texto", () => {
+  const msgs = [{ direction: "inbound", created_at: "2026-11-24T19:41:47Z", message_type: "audio", has_media: true,
+    content: "Audio attached (audio_5ea6.ogg) [Size: 19.1 KB | Type: audio/ogg] URL: https://x \n\nTranscript: Eh, quiero agendar para mañana 25 a las 3:00 p.m., por favor." }];
+  const { entrada } = M.extraerEntrada(msgs, { ultimo_inbound_at: "2026-11-24T19:00:00Z" });
+  assert.equal(entrada.texto, "Eh, quiero agendar para mañana 25 a las 3:00 p.m., por favor.");
+  assert.equal(entrada.tieneMedia, false);
+  const sinTranscripcion = [{ ...msgs[0], content: "[audio attached]" }];
+  assert.equal(M.extraerEntrada(sinTranscripcion, { ultimo_inbound_at: "2026-11-24T19:00:00Z" }).entrada.tieneMedia, true);
+});
+
+test("intérprete: algo sin sentido en ciudad -> IA responde y luego se pregunta con la lista", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si");
+  let r = c.turno("asdfg");
+  assert.equal(r.edge, "interpretar");
+  r = c.turno(null, { interprete: "no_es_respuesta" });
+  assert.equal(r.edge, "desvio");
+  r = c.turno(null);
+  assert.equal(r.acciones[0].tipo, "lista");
+  assert.equal(c.vars.paso, "ciudad_lista");
+});

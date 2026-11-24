@@ -614,6 +614,8 @@ const ACLARACIONES = {
   correo: "parece que el correo quedó incompleto, me lo escribes de nuevo? (por ejemplo nombre@gmail.com)",
   llamada_dia: "elige uno de estos días 👇",
   llamada_franja: "elige una de estas franjas 👇",
+  llamada_hoy: "para hoy ya no alcanzamos a agendarte 🙈 el primer día disponible es mañana, elige el que te quede mejor 👇",
+  llamada_hora_primero: "primero elige el día y enseguida te muestro los horarios disponibles 👇",
   opciones: "para no confundirme, elige una de estas opciones 👇",
 };
 
@@ -704,6 +706,7 @@ function procesar(varsIn, entrada, ctx) {
       asignar("ultima_interpretacion", `${campo}:${etiqueta || "sin_resultado"}`);
       const opcion = opcionDesdeEtiqueta(campo, etiqueta);
       if (opcion === "__no_es__") {
+        if (campo === "ciudad") asignar("ciudad_intentos", 1);
         asignar("pregunta_pendiente", textoPregunta(v.paso, v, ctx));
         return { vars: set, acciones, edge: "desvio" };
       }
@@ -973,23 +976,27 @@ function interpretar(paso, texto, opcion, entrada, v, ctx) {
     }
     case "llamada_dia": {
       const dias = diasDisponibles(ctx.ahora);
+      const n = norm(texto);
       const d = interpretarDia(texto, opcion, dias);
-      if (d) return { ok: true, set: { fecha_llamada: d.fecha, fecha_llamada_texto: d.titulo.toLowerCase(), paso_agenda: "llamada_franja" }, intro: "" };
+      if (d) {
+        const fechaTexto = d.titulo.toLowerCase();
+        // Si en el mismo mensaje viene la hora ("mañana a las 3 pm"), se agenda de una vez.
+        const f = opcion ? null : franjaEnTexto(texto);
+        if (f) return confirmarLlamada(v, d.fecha, fechaTexto, f);
+        return { ok: true, set: { fecha_llamada: d.fecha, fecha_llamada_texto: fechaTexto, paso_agenda: "llamada_franja" }, intro: "" };
+      }
+      if (/\bhoy\b/.test(n)) {
+        return { ok: true, set: {}, acciones: preguntar("llamada_dia", v, ACLARACIONES.llamada_hoy, ctx), edge: "esperar" };
+      }
+      if (/\b(hora|horario|horarios|a que hora)\b/.test(n)) {
+        return { ok: true, set: {}, acciones: preguntar("llamada_dia", v, ACLARACIONES.llamada_hora_primero, ctx), edge: "esperar" };
+      }
       return pregunta || entrada.tieneMedia ? { desvio: true } : { aclarar: "llamada_dia" };
     }
     case "llamada_franja": {
       const f = interpretarFranja(texto, opcion);
       if (!f) return pregunta || entrada.tieneMedia ? { desvio: true } : { aclarar: "llamada_franja" };
-      const nombre = v.nombre ? " " + v.nombre.split(" ")[0] : "";
-      return {
-        ok: true,
-        set: { hora_llamada: f.titulo, paso_agenda: "agendado", paso: "agendado" },
-        acciones: [
-          { op: "guardar_lead", extra: { tipo_agendamiento: "llamada", fecha_llamada: v.fecha_llamada, hora_llamada: f.titulo } },
-          { tipo: "texto", body: `listo${nombre}! quedó agendada tu llamada para el *${v.fecha_llamada_texto}* entre *${f.titulo}* 📞\n\nUn Ejecutivo Comercial de Espazios te va a llamar en ese horario para armar tu cotización personalizada. Si te surge cualquier duda antes, me escribes por aquí 😊` },
-        ],
-        edge: "esperar",
-      };
+      return confirmarLlamada(v, v.fecha_llamada, v.fecha_llamada_texto, f);
     }
     case "agendado_link": {
       const n = norm(texto);
@@ -1018,6 +1025,29 @@ function interpretar(paso, texto, opcion, entrada, v, ctx) {
     default:
       return { desvio: true };
   }
+}
+
+// Franja solo si el texto trae una hora explicita ("a las 3", "3 pm", "3:00 p.m.").
+// Evita confundir el numero del dia ("mañana 25") con una hora.
+function franjaEnTexto(texto) {
+  const n = norm(texto);
+  const m = n.match(/\ba (?:las|la) (\d{1,2})(?::(\d{2}))?\s*(a\.? ?m\.?|p\.? ?m\.?|de la tarde|de la manana)?/) ||
+    n.match(/\b(\d{1,2})(?::(\d{2}))?\s*(a\.? ?m\.?|p\.? ?m\.?)(?![a-z])/);
+  if (!m) return null;
+  return interpretarFranja(`${m[1]} ${(m[3] || "").replace(/[ .]/g, "")}`.trim(), null);
+}
+
+function confirmarLlamada(v, fecha, fechaTexto, f) {
+  const nombre = v.nombre ? " " + v.nombre.split(" ")[0] : "";
+  return {
+    ok: true,
+    set: { fecha_llamada: fecha, fecha_llamada_texto: fechaTexto, hora_llamada: f.titulo, paso_agenda: "agendado", paso: "agendado" },
+    acciones: [
+      { op: "guardar_lead", extra: { tipo_agendamiento: "llamada", fecha_llamada: fecha, hora_llamada: f.titulo } },
+      { tipo: "texto", body: `listo${nombre}! quedó agendada tu llamada para el *${fechaTexto}* entre *${f.titulo}* 📞\n\nUn Ejecutivo Comercial de Espazios te va a llamar en ese horario para armar tu cotización personalizada. Si te surge cualquier duda antes, me escribes por aquí 😊` },
+    ],
+    edge: "esperar",
+  };
 }
 
 function agendarReunion(tipo, v) {
@@ -1116,15 +1146,21 @@ function extraerEntrada(mensajes, varsIn) {
   if (nuevos.length === 0) return { entrada: null, ultimoAt: varsIn.ultimo_inbound_at || null };
   const ultimo = nuevos[nuevos.length - 1];
   const conOpcion = [...nuevos].reverse().find((m) => m.reply_option_id);
+  // Un audio con transcripcion de Kapso ("... Transcript: <texto>") se trata
+  // como texto normal: el motor lo interpreta igual que si lo hubieran escrito.
+  const transcripcion = (m) => {
+    const t = String(m.content || "").match(/Transcript:\s*([\s\S]+)$/i);
+    return t ? t[1].trim() : null;
+  };
   const texto = nuevos
-    .map((m) => m.reply_option_title || m.content || m.caption || "")
+    .map((m) => m.reply_option_title || transcripcion(m) || m.content || m.caption || "")
     .filter((t) => t && !/^\[(image|video|audio|document) attached\]$/i.test(t))
     .join("\n");
   return {
     entrada: {
       texto,
       opcionId: conOpcion ? conOpcion.reply_option_id : null,
-      tieneMedia: nuevos.some((m) => m.has_media || ["image", "video", "document", "audio"].includes(m.message_type)),
+      tieneMedia: nuevos.some((m) => !transcripcion(m) && (m.has_media || ["image", "video", "document", "audio"].includes(m.message_type))),
     },
     ultimoAt: ultimo.created_at,
   };
@@ -1317,4 +1353,4 @@ async function handler(request, env) {
 }
 
 // Para los tests (node:vm). No afecta la ejecucion en Kapso.
-globalThis.__isa3 = { resultadoInterpreteDe, opcionDesdeEtiqueta, ETIQUETAS_INTERPRETE, procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, interpretarDia, payloadMensaje };
+globalThis.__isa3 = { resultadoInterpreteDe, opcionDesdeEtiqueta, ETIQUETAS_INTERPRETE, procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, franjaEnTexto, interpretarDia, payloadMensaje };
