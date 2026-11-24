@@ -574,3 +574,23 @@ test("intérprete: algo sin sentido en ciudad -> IA responde y luego se pregunta
   assert.equal(r.acciones[0].tipo, "lista");
   assert.equal(c.vars.paso, "ciudad_lista");
 });
+
+test("presupuesto 'Como treinta' no se trata como pregunta (no va a la IA)", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si"); c.turno("bta"); c.turno("Quiero total");
+  const r = c.turno("Como treinta");
+  assert.equal(c.vars.presupuesto, "$30");
+  assert.equal(r.edge, "esperar");
+  assert.match(textos(r), /conjunto o barrio/);
+  assert.equal(M.procesar !== undefined, true);
+});
+
+test("conjunto: si solo repite la ciudad, se vuelve a preguntar; un barrio sí se acepta", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si"); c.turno("bta"); c.turno("Quiero total"); c.turno("30 millones");
+  let r = c.turno("En Bogotá");
+  assert.equal(c.vars.conjunto_o_barrio, undefined);
+  assert.match(textos(r), /me refiero al conjunto o barrio/);
+  r = c.turno("Bosa");
+  assert.equal(c.vars.conjunto_o_barrio, "Bosa");
+});

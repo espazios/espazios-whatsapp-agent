@@ -102,6 +102,8 @@ function esPregunta(texto) {
   const t = String(texto || "");
   if (t.includes("?") || t.includes("¿")) return true;
   const n = norm(t);
+  // "como treinta", "como 40 millones": "como" = aproximadamente, no es pregunta
+  if (/^como\s+(\d|un |una |dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|veinti|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien)/.test(n)) return false;
   return /^(que|como|cuanto|cuantos|cuanta|cuando|donde|cual|cuales|tienen|hacen|manejan|ofrecen|incluye|puedo|pueden|me pueden|me podrias|podrian|quisiera saber|quiero saber|hay )\b/.test(n);
 }
 
@@ -617,6 +619,7 @@ const ACLARACIONES = {
   llamada_hoy: "para hoy ya no alcanzamos a agendarte 🙈 el primer día disponible es mañana, elige el que te quede mejor 👇",
   llamada_hora_primero: "primero elige el día y enseguida te muestro los horarios disponibles 👇",
   opciones: "para no confundirme, elige una de estas opciones 👇",
+  conjunto_ciudad: "me refiero al conjunto o barrio donde queda la vivienda 🙂 (por ejemplo Porto 13 o Hayuelos)",
 };
 
 // ---------------------------------------------------------------------------
@@ -937,6 +940,13 @@ function interpretar(paso, texto, opcion, entrada, v, ctx) {
     case "conjunto_o_barrio": {
       const t = String(texto).trim().replace(/[.!]+$/, "");
       if (!t || pregunta || entrada.tieneMedia) return { desvio: true };
+      // Si solo repite la ciudad ("En Bogotá"), se pide el conjunto o barrio dentro de ella.
+      const soloCiudad = norm(t).replace(/^(en|de|la ciudad de|ciudad)\s+/, "").replace(/[.,]/g, "").trim();
+      // Solo el nombre de la ciudad o su abreviatura; "Bosa", "Suba" o "Hayuelos" sí son barrios válidos.
+      const nombresCiudad = [norm(v.ciudad || ""), ...(v.ciudad === "Bogotá" ? ["bta", "bgta", "bogta", "bogot", "bog"] : [])];
+      if (v.ciudad && (nombresCiudad.includes(soloCiudad) || /^bogota d ?c$/.test(soloCiudad))) {
+        return { aclarar: "conjunto_ciudad" };
+      }
       return { ok: true, set: { conjunto_o_barrio: t.slice(0, 120) } };
     }
     case "m2": {
