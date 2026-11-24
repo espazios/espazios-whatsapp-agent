@@ -2231,6 +2231,24 @@ las reglas no entienden ("obr banca", "remo total", "suacha") — ver
 forma del evento de decisión que lee el motor. Arreglos urgentes de v2 (quitar `complete_task`,
 corregir esquemas de los webhooks) quedaron propuestos, sin aplicar.
 
+## Isa v3 en produccion — corte 2026-11-24
+
+El numero principal (`+57 310 8708467`, `phone_number_id 1015963018277835`)
+paso de Isa v2 a Isa v3: trigger de v2 `e4bf6ded-...` desactivado, trigger
+nuevo de v3 `20d5294a-20a4-45d0-bad3-e438f595f9b2` activo. Para devolverse:
+invertir esos dos triggers. Isa v3 sigue tambien en el numero de pruebas
+(+57 313 8756205); Referidos sigue pausado ahi.
+
+- Conversaciones nuevas entran a v3. Las que estaban esperando en v2 siguen
+  en v2 hasta que su ejecucion termine (al corte habia mas de 100 en
+  `waiting`, la mayoria con mas de 7 dias sin actividad). Pendiente:
+  cerrarlas (las de mas de 24h) con autorizacion del usuario.
+- v3 retoma leads previos: en el primer mensaje busca el telefono en
+  `leads_tibios_isa_v2`/`leads_isa_v2`, carga los datos validos y sigue desde
+  el primero que falte ("que bueno tenerte de vuelta").
+- Columna `version` en ambas tablas: "v3" en filas escritas por v3; vacia =
+  v2 o anterior.
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +
