@@ -447,6 +447,70 @@ const CIUDADES_LISTA = [
 ];
 const MUNICIPIOS_LISTA = COBERTURA_SOLO_CARPINTERIA.map(filaCiudad);
 
+// ---------------------------------------------------------------------------
+// Interprete IA (nodo `interprete`, decide en modo IA, en el Workflow).
+// Solo se usa cuando las reglas no entienden una respuesta de OPCION. Elige
+// una etiqueta cerrada; el motor la traduce a la opcion que ya sabe procesar.
+// La etiqueta "no_es_respuesta" es la PRIMERA condicion del nodo: si la IA
+// falla, Kapso cae en ella y el mensaje va al agente de desvios.
+// ---------------------------------------------------------------------------
+const ETIQUETAS_INTERPRETE = {
+  no_es_respuesta: "__no_es__",
+  ciudad_otra: "__otra_ciudad__",
+  ...Object.fromEntries([...CIUDADES_LISTA, ...MUNICIPIOS_LISTA]
+    .filter((f) => !["c_municipio", "c_otra"].includes(f.id))
+    .map((f) => ["ciudad_" + f.id.slice(2), f.id])),
+  tipo_obra_blanca: "tp_obra",
+  tipo_intermedio: "tp_intermedio",
+  tipo_remodelacion_total: "tp_total",
+  tipo_carpinteria: "tp_carpinteria",
+  ver_obra_blanca: "ver_obra",
+  ver_intermedio: "ver_intermedio",
+  ver_remodelacion_total: "ver_total",
+  quiere_agendar: "agendar",
+  agenda_llamada: "ag_llamada",
+  agenda_virtual: "ag_virtual",
+  agenda_presencial: "ag_presencial",
+};
+
+// Que etiquetas son validas para cada campo (la IA podria elegir una de otro campo).
+const PREFIJOS_CAMPO = {
+  ciudad: ["ciudad_"],
+  tipo_proyecto: ["tipo_"],
+  paquete_o_agendar: ["ver_", "quiere_agendar"],
+  tipo_agendamiento: ["agenda_"],
+};
+
+function opcionDesdeEtiqueta(campo, etiqueta) {
+  if (!etiqueta || !(etiqueta in ETIQUETAS_INTERPRETE)) return null;
+  if (etiqueta === "no_es_respuesta") return "__no_es__";
+  const validos = PREFIJOS_CAMPO[campo] || [];
+  if (!validos.some((p) => etiqueta.startsWith(p))) return null;
+  return ETIQUETAS_INTERPRETE[etiqueta];
+}
+
+// Busca en los eventos recientes del flujo la decision del nodo interprete.
+// Solo mira campos explicitos de la decision (no el prompt, que lista todas
+// las etiquetas). Si no encuentra nada, devuelve null y el motor muestra la
+// lista de opciones: degradacion segura.
+function resultadoInterpreteDe(flowEvents, desde) {
+  const evs = (Array.isArray(flowEvents) ? flowEvents : [])
+    .filter((e) => /decision/.test(String(e.event_type || e.eventType || "")))
+    .sort((a, b) => Date.parse(b.created_at || b.createdAt || 0) - Date.parse(a.created_at || a.createdAt || 0));
+  const limite = desde ? Date.parse(desde) - 2000 : 0;
+  for (const e of evs) {
+    if (limite && Date.parse(e.created_at || e.createdAt || 0) < limite) continue;
+    const p = e.payload || {};
+    const candidatos = [e.edge_label, e.edgeLabel, p.edge_label, p.edgeLabel, p.next_edge, p.selected_edge,
+      p.selected_condition, p.decision, p.label, p.result, p.condition, p.chosen, p.response];
+    for (const c of candidatos) {
+      const t = typeof c === "string" ? c.trim() : c && typeof c === "object" ? (c.label || c.edge_label || "") : "";
+      if (t && t in ETIQUETAS_INTERPRETE) return t;
+    }
+  }
+  return null;
+}
+
 function saludo(vars, nombrePerfil, nombreDicho) {
   const gancho = "hablas con Isa de Espazios — te acompañamos con los acabados y remodelación de tu vivienda. Aquí podemos avanzar con una cotización ilustrativa.";
   if (nombreDicho) return `Hola ${nombreDicho.split(" ")[0]}! ${gancho}`;
@@ -528,6 +592,7 @@ const ACLARACIONES = {
   correo: "parece que el correo quedó incompleto, me lo escribes de nuevo? (por ejemplo nombre@gmail.com)",
   llamada_dia: "elige uno de estos días 👇",
   llamada_franja: "elige una de estas franjas 👇",
+  opciones: "para no confundirme, elige una de estas opciones 👇",
 };
 
 // ---------------------------------------------------------------------------
@@ -608,6 +673,35 @@ function procesar(varsIn, entrada, ctx) {
   }
 
   // ---- 2) Volviendo del agente IA (sin mensaje nuevo): retomar el flujo -----
+  // Vuelve del interprete IA (sin mensaje nuevo): aplica su resultado.
+  if (v.interpretacion_pendiente) {
+    asignar("interpretacion_pendiente", false);
+    if (!entrada) {
+      const campo = v.campo_interpretar;
+      const etiqueta = ctx.resultadoInterprete || null;
+      asignar("ultima_interpretacion", `${campo}:${etiqueta || "sin_resultado"}`);
+      const opcion = opcionDesdeEtiqueta(campo, etiqueta);
+      if (opcion === "__no_es__") {
+        asignar("pregunta_pendiente", textoPregunta(v.paso, v, ctx));
+        return { vars: set, acciones, edge: "desvio" };
+      }
+      if (!opcion || opcion === "__otra_ciudad__") {
+        // No hubo resultado util: se muestran las opciones. Para "otra ciudad"
+        // se pide confirmar en la lista, porque cerrar por cobertura es definitivo.
+        let pasoLista = v.paso;
+        if (campo === "ciudad") {
+          pasoLista = v.paso === "ciudad_municipio" ? "ciudad_municipio" : "ciudad_lista";
+          asignar("ciudad_intentos", 1);
+        }
+        acciones.push(...preguntar(pasoLista, v, ACLARACIONES[campo === "ciudad" ? "ciudad" : "opciones"], ctx));
+        asignar("paso", pasoLista);
+        return { vars: set, acciones, edge: "esperar" };
+      }
+      entrada = { texto: v.mensaje_cliente || "", opcionId: opcion, tieneMedia: false, interpretada: true };
+    }
+    // Si llego un mensaje nuevo mientras interpretaba, se procesa ese.
+  }
+
   if (!entrada) {
     const p = siguientePaso(v);
     if (p === "cerrado" || p === "agendado" || p === "agendado_link" || p === "estimado") {
@@ -651,6 +745,17 @@ function procesar(varsIn, entrada, ctx) {
 
   const r = interpretar(v.paso, texto, opcion, entrada, v, ctx);
   for (const [k, val] of Object.entries(r.set || {})) asignar(k, val);
+
+  if (r.interpretar) {
+    if (!entrada.interpretada) {
+      asignar("interpretacion_pendiente", true);
+      asignar("campo_interpretar", r.interpretar);
+      asignar("interpretar_desde", ctx.ahora.toISOString());
+      return { vars: set, acciones, edge: "interpretar" };
+    }
+    acciones.push(...preguntar(v.paso, v, ACLARACIONES.opciones, ctx));
+    return { vars: set, acciones, edge: "esperar" };
+  }
 
   if (r.aclarar) {
     const intentos = Number((v.intentos && v.intentos[v.paso]) || 0) + 1;
@@ -767,12 +872,12 @@ function interpretar(paso, texto, opcion, entrada, v, ctx) {
       const ciudad = buscarCiudad(texto);
       if (ciudad) return { ok: true, set: { ciudad } };
       if (pregunta || entrada.tieneMedia || norm(texto).split(" ").length > 8) return { desvio: true };
-      return { aclarar: "ciudad", pasoAclaracion: paso === "ciudad_municipio" ? "ciudad_municipio" : "ciudad_lista", set: { ciudad_intentos: 1 } };
+      return { interpretar: "ciudad" };
     }
     case "tipo_proyecto": {
       const tipo = interpretarTipo(texto, opcion);
       if (tipo) return { ok: true, set: { tipo_proyecto: tipo } };
-      return pregunta || entrada.tieneMedia ? { desvio: true } : { aclarar: "tipo_proyecto" };
+      return pregunta || entrada.tieneMedia ? { desvio: true } : { interpretar: "tipo_proyecto" };
     }
     case "presupuesto": {
       const p = interpretarPresupuesto(texto);
@@ -842,7 +947,7 @@ function interpretar(paso, texto, opcion, entrada, v, ctx) {
       if (opcion === "ag_virtual" || /virtual|meet|video|zoom|online/.test(n)) return agendarReunion("reunion_virtual", v);
       if (opcion === "ag_presencial" || /presencial|oficina|en persona|personal/.test(n)) return agendarReunion("reunion_presencial", v);
       if (/reunion/.test(n)) return { aclarar: "tipo_agendamiento" };
-      return { desvio: true };
+      return pregunta || entrada.tieneMedia ? { desvio: true } : { interpretar: "tipo_agendamiento" };
     }
     case "llamada_dia": {
       const dias = diasDisponibles(ctx.ahora);
@@ -932,7 +1037,7 @@ function interpretarPostEstimado(texto, opcion, v) {
   if ((esNegacion(texto) || /^(gracias|ok|listo|vale)\b/.test(n)) && v.paso === "post_estimado") {
     return { ok: true, set: { paso_agenda: "duda_o_agendar" }, intro: "" };
   }
-  return { desvio: true };
+  return esPregunta(texto) ? { desvio: true } : { interpretar: "paquete_o_agendar" };
 }
 
 // Mensajes despues de recibir la respuesta de Railway
@@ -1101,7 +1206,13 @@ async function handler(request, env) {
   const ctx = {
     perfil: contact.profile_name || contact.name || conversation.contact_name || "",
     ahora: new Date(),
+    resultadoInterprete: vars.interpretacion_pendiente ? resultadoInterpreteDe(body.flow_events, vars.interpretar_desde) : null,
   };
+  if (vars.interpretacion_pendiente) {
+    // Diagnostico: estructura real de los eventos de decision (para ajustar el lector si hace falta).
+    const decisiones = (body.flow_events || []).filter((e) => /decision/.test(String(e.event_type || e.eventType || "")));
+    console.log("interprete", ctx.resultadoInterprete, JSON.stringify(decisiones.slice(-2)).slice(0, 1500));
+  }
 
   const res = procesar(vars, entrada, ctx);
   const nuevasVars = { ...res.vars };
@@ -1180,4 +1291,4 @@ async function handler(request, env) {
 }
 
 // Para los tests (node:vm). No afecta la ejecucion en Kapso.
-globalThis.__isa3 = { procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, interpretarDia, payloadMensaje };
+globalThis.__isa3 = { resultadoInterpreteDe, opcionDesdeEtiqueta, ETIQUETAS_INTERPRETE, procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, interpretarDia, payloadMensaje };

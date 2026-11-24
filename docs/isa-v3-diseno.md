@@ -300,3 +300,30 @@ Fallas encontradas y corregidas:
 3. La IA terminaba respuestas con preguntas y mencionó "opciones de pago".
    Reglas nuevas en el prompt.
 4. Reconoce "Bgta" como Bogotá y "Quiero blanca" como Solo Obra Blanca.
+
+### Intérprete IA para respuestas que el motor no entiende (Opción A, 2026-11-24)
+
+Autorizado por el usuario. Cuando las reglas del motor no reconocen una
+respuesta de opción (ciudad, tipo de proyecto, paquete/agendar, tipo de
+agendamiento) y el texto no es una pregunta, el motor no aclara ni manda
+a la IA conversacional: devuelve el edge `interpretar` con
+`interpretacion_pendiente`, `campo_interpretar` e `interpretar_desde`.
+
+- Nodo `interprete` (decide en modo AI, `claude-haiku-5-5`, temperatura 0,
+  historial de 4 mensajes, variables `campo_interpretar` y
+  `mensaje_cliente`). Solo **clasifica**: 25 condiciones
+  (`no_es_respuesta` primero, porque Kapso cae a la primera si la IA
+  falla), todas vuelven al motor. Nunca le escribe al cliente.
+- El motor lee la etiqueta elegida del evento de decisión en
+  `flow_events` (`resultadoInterpreteDe`) y la valida contra el campo
+  preguntado (`opcionDesdeEtiqueta`): una etiqueta de otro campo se
+  ignora. Si no hay etiqueta, o es `ciudad_otra`, muestra la lista de
+  opciones (degradación segura); `no_es_respuesta` va al desvío.
+- Si el cliente manda un mensaje nuevo mientras tanto, ese mensaje manda.
+- Presupuesto, m², baños, plazo y correo siguen sin intérprete: ahí las
+  reglas + aclaración bastan.
+
+Pendiente: en la primera prueba real, revisar el `console.log("interprete", ...)`
+de `isa3-motor` para confirmar la forma real del evento de decisión y
+ajustar `resultadoInterpreteDe` si la etiqueta viene en otro campo.
+Workflow publicado (lock 9) e `isa3-motor` desplegado (lock 10).

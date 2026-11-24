@@ -22,7 +22,7 @@ function conversacion(perfil = "Dago M L") {
   const historial = [];
   const turno = (texto, extra = {}) => {
     const entrada = texto === null ? null : { texto, opcionId: extra.opcion || null, tieneMedia: !!extra.media };
-    const r = M.procesar(vars, entrada, { perfil, ahora: AHORA });
+    const r = M.procesar(vars, entrada, { perfil, ahora: AHORA, resultadoInterprete: extra.interprete || null });
     vars = { ...vars, ...r.vars };
     historial.push(r);
     return r;
@@ -235,10 +235,14 @@ test("ciudad solo carpintería + tipo distinto cierra; con Carpintería sigue", 
   assert.match(textos(r), /presupuesto/);
 });
 
-test("ciudad no reconocida: pasa a lista de ciudades", () => {
+test("ciudad no reconocida: va al intérprete IA; sin resultado muestra la lista", () => {
   const c = conversacion();
   c.turno("hola"); c.turno("si");
-  const r = c.turno("villa del rosario");
+  let r = c.turno("villa del rosario");
+  assert.equal(r.edge, "interpretar");
+  assert.equal(r.acciones.length, 0, "el intérprete no le escribe al cliente");
+  assert.equal(c.vars.campo_interpretar, "ciudad");
+  r = c.turno(null); // vuelve del intérprete sin resultado
   assert.equal(r.acciones[0].tipo, "lista");
   assert.ok(r.acciones[0].filas.length <= 10, "WhatsApp: máximo 10 filas");
   assert.equal(c.vars.paso, "ciudad_lista");
@@ -383,4 +387,103 @@ test("ningún mensaje del motor usa signos de apertura ¿ ¡", () => {
     todos.push(textos(c.turno(t, { opcion: o })));
   }
   assert.doesNotMatch(todos.join("\n"), /[¿¡]/);
+});
+
+// ---------------------------------------------------------------------------
+// Intérprete IA (opción A)
+// ---------------------------------------------------------------------------
+test("intérprete: 'obr banca' -> tipo_obra_blanca -> sigue con presupuesto", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si"); c.turno("Bogotá");
+  let r = c.turno("obr banca");
+  assert.equal(r.edge, "interpretar");
+  assert.equal(c.vars.campo_interpretar, "tipo_proyecto");
+  r = c.turno(null, { interprete: "tipo_obra_blanca" });
+  assert.equal(c.vars.tipo_proyecto, "Solo Obra Blanca");
+  assert.match(textos(r), /presupuesto/);
+  assert.equal(c.vars.ultima_interpretacion, "tipo_proyecto:tipo_obra_blanca");
+});
+
+test("intérprete: ciudad mal escrita -> Soacha; 'otra ciudad' pide confirmar en lista (no cierra)", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si");
+  c.turno("suacha");
+  let r = c.turno(null, { interprete: "ciudad_soacha" });
+  assert.equal(c.vars.ciudad, "Soacha");
+  assert.equal(r.acciones[0].tipo, "lista"); // tipo de proyecto
+
+  const d = conversacion();
+  d.turno("hola"); d.turno("si"); d.turno("villa del rosario");
+  r = d.turno(null, { interprete: "ciudad_otra" });
+  assert.ok(!d.vars.cerrado, "no cierra sin confirmación");
+  assert.equal(d.vars.paso, "ciudad_lista");
+});
+
+test("intérprete: municipio de la Sabana mal escrito queda en solo carpintería", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si"); c.turno("faccatativa");
+  c.turno(null, { interprete: "ciudad_facatativa" });
+  assert.equal(c.vars.ciudad, "Facatativá");
+  c.turno("Remodelación Total", { opcion: "tp_total" });
+  assert.equal(c.vars.cerrado, "cerrar_cobertura_tipo");
+});
+
+test("intérprete: 'no_es_respuesta' va a la IA de desvíos", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si"); c.turno("Bogotá");
+  c.turno("ay ahorita estoy manejando");
+  const r = c.turno(null, { interprete: "no_es_respuesta" });
+  assert.equal(r.edge, "desvio");
+  assert.match(c.vars.pregunta_pendiente, /Qué te gustaría hacer/);
+});
+
+test("intérprete: etiqueta de otro campo se rechaza y muestra la lista", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si"); c.turno("Bogotá");
+  c.turno("el de lujo");
+  const r = c.turno(null, { interprete: "ciudad_bogota" });
+  assert.ok(!c.vars.tipo_proyecto);
+  assert.equal(r.acciones[0].tipo, "lista");
+  assert.match(r.acciones[0].body, /elige una de estas opciones/);
+});
+
+test("intérprete: después del estimado y al agendar", () => {
+  let vars = { paso: "post_estimado", nombre: "Ana", ciudad: "Bogotá", tipo_proyecto: "Intermedio", presupuesto: "$30", conjunto_o_barrio: "X", m2: 50, plazo: "Inmediato", correo: "a@b.co", estimado_enviado: true, aviso_datos: true, paquetes_vistos: ["intermedio"], tibio_firma: "Ana|Bogotá|Intermedio|$30" };
+  const paso = (texto, extra = {}) => {
+    const r = M.procesar(vars, texto === null ? null : { texto, opcionId: null, tieneMedia: false }, { perfil: "", ahora: AHORA, resultadoInterprete: extra.interprete || null });
+    vars = { ...vars, ...r.vars };
+    return r;
+  };
+  let r = paso("muestrame el todo incluido");
+  assert.equal(r.edge, "interpretar");
+  r = paso(null, { interprete: "ver_remodelacion_total" });
+  assert.deepEqual(r.acciones, [{ op: "detalle", paquete: "total" }]);
+
+  r = paso("dale de una agendemos");
+  assert.equal(vars.paso, "tipo_agendamiento");
+  r = paso("virtul porfa");
+  assert.equal(r.edge, "interpretar");
+  r = paso(null, { interprete: "agenda_virtual" });
+  assert.ok(r.acciones.some((a) => a.tipo === "cta"));
+});
+
+test("intérprete: si llega un mensaje nuevo mientras interpreta, se procesa el nuevo", () => {
+  const c = conversacion();
+  c.turno("hola"); c.turno("si"); c.turno("Bogotá");
+  c.turno("obr banca");
+  const r = c.turno("Intermedio", { opcion: "tp_intermedio" });
+  assert.equal(c.vars.tipo_proyecto, "Intermedio");
+  assert.equal(c.vars.interpretacion_pendiente, false);
+});
+
+test("lector de la decisión: usa campos explícitos, ignora el prompt con todas las etiquetas", () => {
+  const desde = "2026-11-24T15:00:00Z";
+  const evPrompt = { event_type: "decision_evaluated", created_at: "2026-11-24T15:00:01Z", payload: { prompt: "opciones: no_es_respuesta, ciudad_bogota, tipo_obra_blanca" } };
+  assert.equal(M.resultadoInterpreteDe([evPrompt], desde), null);
+  const ev = { event_type: "decision_evaluated", created_at: "2026-11-24T15:00:02Z", edge_label: "tipo_intermedio", payload: { prompt: "ciudad_bogota..." } };
+  assert.equal(M.resultadoInterpreteDe([evPrompt, ev], desde), "tipo_intermedio");
+  const viejo = { event_type: "decision_evaluated", created_at: "2026-11-24T14:00:00Z", edge_label: "tipo_carpinteria" };
+  assert.equal(M.resultadoInterpreteDe([viejo], desde), null, "ignora decisiones anteriores");
+  const delMotor = { event_type: "decision_evaluated", created_at: "2026-11-24T15:00:03Z", edge_label: "esperar" };
+  assert.equal(M.resultadoInterpreteDe([delMotor, ev], desde), "tipo_intermedio", "ignora las decisiones del motor");
 });

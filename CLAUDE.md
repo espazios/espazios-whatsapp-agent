@@ -2221,9 +2221,14 @@ perfilamiento, filtros, estimado, detalle y agendamiento sin IA; el agente
 (`docs/isa-v3-prompt-agente.md`, `tool_only`) solo responde desvíos y
 devuelve el control con `complete_task`. Isa v2 no se tocó.
 
-**Pendiente:** el usuario debe pegar `KAPSO_API_KEY` como secret de
-`isa3-motor`; luego conectar el Workflow al número de pruebas y probar una
-conversación completa. Arreglos urgentes de v2 (quitar `complete_task`,
+**Estado (2026-11-24):** `KAPSO_API_KEY` ya está como secret; el Workflow
+corre en el número de pruebas **+57 313 8756205**, con el trigger de
+Referidos (`cd472fbd-bc01-4328-b4d9-9d8dcf732485`) **pausado** durante las
+pruebas (hay que reactivarlo al terminar). Se agregó un nodo `interprete`
+(decide AI, `claude-haiku-5-5`) que solo clasifica respuestas de opción que
+las reglas no entienden ("obr banca", "remo total", "suacha") — ver
+`docs/isa-v3-diseno.md`. Pendiente: confirmar en la primera prueba real la
+forma del evento de decisión que lee el motor. Arreglos urgentes de v2 (quitar `complete_task`,
 corregir esquemas de los webhooks) quedaron propuestos, sin aplicar.
 
 ## Pendiente de informacion (bloquea partes del flujo)
