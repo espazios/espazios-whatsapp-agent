@@ -45,10 +45,17 @@ El flujo es determinístico y la IA solo atiende desvíos. Diseño completo en
   Referidos (`cd472fbd-…`) está pausado.
 
 **Tablas D1** (base compartida del proyecto en Kapso):
-- `leads_tibios_isa_v2`: nombre, ciudad, tipo y presupuesto.
-- `leads_isa_v2`: los 8 datos y el agendamiento.
-- `isa3_seguimientos`: cadena de seguimiento por lead. Por decisión del usuario
+- `leads_tibios`: nombre, ciudad, tipo y presupuesto.
+- `leads_calificados`: los 8 datos y el agendamiento.
+- `seguimientos`: cadena de seguimiento por lead. Por decisión del usuario
   (2026-11-25), por ahora no se borran filas de las tablas activas.
+- `leads_isa_v1_historico`: leads de la Isa vieja; nada escribe ahí.
+- `referidores`, `referidos`, `referidos_formulario`: flujo de Referidos. No se borran.
+
+Renombradas el 2026-11-25 (antes `leads_tibios_isa_v2`, `leads_isa_v2`,
+`isa3_seguimientos`, `leads`). El motor busca primero el nombre nuevo y, si no
+existe, usa el viejo. Ojo: las funciones de v2 (`guardar-lead-isa-v2`,
+`leads-reporte-isa-v2`) todavía usan los nombres viejos; no invocarlas.
 
 La columna `version` vale `"v3"` en filas escritas por v3.
 
@@ -58,7 +65,7 @@ La columna `version` vale `"v3"` en filas escritas por v3.
 
 ## Cómo trabajar en Isa v3
 
-- Pruebas: `node --test kapso-functions/isa-v3/`. Deben pasar todas antes de
+- Pruebas: `node --test kapso-functions/isa-v3/*.test.mjs`. Deben pasar todas antes de
   desplegar.
 - Deploy del motor: el código desplegado es `motor.js` sin líneas en blanco ni
   comentarios de línea completa, con un comentario de cabecera. Después de

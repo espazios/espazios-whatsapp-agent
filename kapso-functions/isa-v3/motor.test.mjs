@@ -770,7 +770,7 @@ test("D1: el motor programa, reprograma y cancela; el tick envía y avanza los i
   const base = { idLead: "57300", edge: "esperar", destino: { phoneNumberId: "1", to: "57300" }, conversationId: "c1", executionId: "e1" };
   const t0 = new Date("2026-11-24T15:00:00Z");
   await S.actualizarSeguimiento(env, { ...base, estado: { paso: "presupuesto", nombre: "Ana" }, ahora: t0, ultimoCliente: t0.toISOString() });
-  let fila = db.raw.prepare("select * from isa3_seguimientos").get();
+  let fila = db.raw.prepare("select * from seguimientos").get();
   assert.equal(fila.estado, "pendiente");
   assert.equal(bogota(fila.proximo_en), "2026-11-24 10:10");
 
@@ -782,14 +782,14 @@ test("D1: el motor programa, reprograma y cancela; el tick envía y avanza los i
   assert.equal(enviados.length, 1);
   assert.equal(enviados[0].to, "57300");
   assert.match(enviados[0].text.body, /Ana, sigo por aquí pendiente/);
-  fila = db.raw.prepare("select * from isa3_seguimientos").get();
+  fila = db.raw.prepare("select * from seguimientos").get();
   assert.equal(fila.intento, 1);
   assert.equal(bogota(fila.proximo_en), "2026-11-24 14:11");
 
   // el cliente responde: vuelve a intento 0 y a 10 min
   const t1 = new Date("2026-11-24T16:00:00Z");
   await S.actualizarSeguimiento(env, { ...base, estado: { paso: "conjunto_o_barrio", nombre: "Ana" }, ahora: t1, ultimoCliente: t1.toISOString() });
-  fila = db.raw.prepare("select * from isa3_seguimientos").get();
+  fila = db.raw.prepare("select * from seguimientos").get();
   assert.equal(fila.intento, 0);
   assert.equal(fila.paso, "conjunto_o_barrio");
 
@@ -798,7 +798,7 @@ test("D1: el motor programa, reprograma y cancela; el tick envía y avanza los i
   await S.tickSeguimientos(env, new Date("2026-11-24T21:00:00Z"), 20);
   res = await S.tickSeguimientos(env, new Date("2026-11-25T21:00:00Z"), 20);
   assert.equal(res[0].intento, 3);
-  fila = db.raw.prepare("select * from isa3_seguimientos").get();
+  fila = db.raw.prepare("select * from seguimientos").get();
   assert.equal(fila.estado, "cerrado");
   // mas de 24h sin que el cliente escriba: el ultimo va por plantilla
   assert.equal(enviados[enviados.length - 1].template.name, "isa_seguimiento_precalificacion_final");
@@ -807,7 +807,7 @@ test("D1: el motor programa, reprograma y cancela; el tick envía y avanza los i
   // agendado o humano: se cancela
   await S.actualizarSeguimiento(env, { ...base, estado: { paso: "presupuesto" }, ahora: t1 });
   await S.actualizarSeguimiento(env, { ...base, estado: { paso: "agendado" }, ahora: t1 });
-  assert.equal(db.raw.prepare("select estado from isa3_seguimientos").get().estado, "cancelado");
+  assert.equal(db.raw.prepare("select estado from seguimientos").get().estado, "cancelado");
 });
 
 test("tick: fuera de horario hábil no envía nada", async () => {
@@ -834,4 +834,19 @@ test("tick: si la ejecución ya no está esperando, cancela sin enviar", async (
   const res = await S.tickSeguimientos(env, new Date("2026-11-24T16:00:00Z"), 20);
   assert.equal(res[0].resultado, "cancelado");
   assert.equal(enviados, 0);
+});
+
+test("nombres de tablas: usa la vieja hasta que se renombra, luego la nueva aunque la vieja reaparezca", async () => {
+  const db = d1();
+  const env = { DB: db, KAPSO_API_KEY: "x" };
+  db.raw.exec("CREATE TABLE isa3_seguimientos (id_lead TEXT PRIMARY KEY, execution_id TEXT, conversation_id TEXT, destino TEXT, paso TEXT, vars TEXT, intento INTEGER DEFAULT 0, estado TEXT, proximo_en TEXT, ultimo_cliente_en TEXT, ultimo_envio_en TEXT, detalle TEXT, creado_en TEXT, actualizado_en TEXT)");
+  const base = { idLead: "1", edge: "esperar", destino: {}, executionId: "e", estado: { paso: "m2" }, ahora: new Date("2026-11-24T15:00:00Z") };
+  await S.actualizarSeguimiento(env, base);
+  assert.equal(db.raw.prepare("select count(*) n from isa3_seguimientos").get().n, 1);
+  db.raw.exec("ALTER TABLE isa3_seguimientos RENAME TO seguimientos");
+  await S.actualizarSeguimiento(env, { ...base, idLead: "2" });
+  assert.equal(db.raw.prepare("select count(*) n from seguimientos").get().n, 2);
+  db.raw.exec("CREATE TABLE isa3_seguimientos (id_lead TEXT)"); // algo viejo la vuelve a crear
+  await S.actualizarSeguimiento(env, { ...base, idLead: "3" });
+  assert.equal(db.raw.prepare("select count(*) n from seguimientos").get().n, 3);
 });

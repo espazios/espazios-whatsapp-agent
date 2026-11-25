@@ -226,7 +226,7 @@ app.get<{ Params: { id: string } }>("/tools/estimados/:id", async (req, reply) =
 });
 
 // --- Seguimientos automaticos de Isa v3 (2026-11-25) ---
-// Isa v3 programa los seguimientos en D1 (tabla isa3_seguimientos) y la Kapso
+// Isa v3 programa los seguimientos en D1 (tabla seguimientos) y la Kapso
 // Function publica `isa3-seguimientos` envia los que vencieron. Kapso no tiene
 // cron, asi que este servidor la despierta cada minuto. La funcion no recibe
 // datos del cliente: llamarla de mas no adelanta ni duplica ningun envio.

@@ -562,11 +562,32 @@ function datosLeadPrevio(fila) {
   return { datos: d, agendado: !!txt(fila.tipo_agendamiento) };
 }
 
+// Nombres de las tablas (renombradas 2026-11-25). Mientras la tabla nueva no
+// exista se usa la vieja, asi el cambio de nombre no tumba a Isa. Si la nueva
+// existe se usa siempre, aunque algo viejo (v2) vuelva a crear la tabla antigua.
+const TABLAS = {
+  tibios: ["leads_tibios", "leads_tibios_isa_v2"],
+  calificados: ["leads_calificados", "leads_isa_v2"],
+  seguimientos: ["seguimientos", "isa3_seguimientos"],
+};
+const tablasResueltas = new WeakMap();
+async function tabla(env, clave) {
+  let cache = tablasResueltas.get(env.DB);
+  if (!cache) { cache = new Map(); tablasResueltas.set(env.DB, cache); }
+  if (cache.has(clave)) return cache.get(clave);
+  const [nuevo, viejo] = TABLAS[clave];
+  const existe = async (nombre) => !!(await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").bind(nombre).first().catch(() => null));
+  if (await existe(nuevo)) { cache.set(clave, nuevo); return nuevo; }
+  if (await existe(viejo)) return viejo; // aun sin renombrar: no se guarda, se vuelve a revisar
+  cache.set(clave, nuevo);
+  return nuevo;
+}
+
 async function buscarLeadPrevio(env, id) {
   if (!env.DB || !id) return null;
   try {
-    const tibio = await env.DB.prepare("SELECT * FROM leads_tibios_isa_v2 WHERE telefono = ?").bind(id).first().catch(() => null);
-    const completo = await env.DB.prepare("SELECT * FROM leads_isa_v2 WHERE telefono = ?").bind(id).first().catch(() => null);
+    const tibio = await env.DB.prepare(`SELECT * FROM ${await tabla(env, "tibios")} WHERE telefono = ?`).bind(id).first().catch(() => null);
+    const completo = await env.DB.prepare(`SELECT * FROM ${await tabla(env, "calificados")} WHERE telefono = ?`).bind(id).first().catch(() => null);
     if (!tibio && !completo) return null;
     const fila = { ...(tibio || {}) };
     for (const [k, val] of Object.entries(completo || {})) if (val !== null && val !== undefined && val !== "") fila[k] = val;
@@ -1268,7 +1289,7 @@ function extraerEntrada(mensajes, varsIn) {
 // Seguimientos automaticos por inactividad
 // ---------------------------------------------------------------------------
 // Cada vez que el motor deja una pregunta del flujo pendiente, programa un
-// seguimiento en D1 (isa3_seguimientos, una fila por lead). La Kapso Function
+// seguimiento en D1 (tabla seguimientos, una fila por lead). La Kapso Function
 // "isa3-seguimientos" (mismo codigo, entrada handlerSeguimientos) la llama
 // Railway cada minuto y manda los que vencieron:
 //   intento 1: 10 min habiles despues de la ultima actividad
@@ -1384,32 +1405,34 @@ function sumarMinutosHabiles(desde, minutos) {
   return new Date(desde.getTime() + minutos * 60000);
 }
 
-const tablasSeguimientosListas = new WeakSet();
+const tablasSeguimientosListas = new WeakMap();
 async function asegurarTablaSeguimientos(env) {
-  if (tablasSeguimientosListas.has(env.DB)) return;
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS isa3_seguimientos (
+  const t = await tabla(env, "seguimientos");
+  if (tablasSeguimientosListas.get(env.DB) === t) return t;
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS ${t} (
     id_lead TEXT PRIMARY KEY, execution_id TEXT, conversation_id TEXT, destino TEXT, paso TEXT, vars TEXT,
     intento INTEGER DEFAULT 0, estado TEXT, proximo_en TEXT, ultimo_cliente_en TEXT, ultimo_envio_en TEXT,
     detalle TEXT, creado_en TEXT, actualizado_en TEXT)`).run();
-  tablasSeguimientosListas.add(env.DB);
+  tablasSeguimientosListas.set(env.DB, t);
+  return t;
 }
 
 // Llamado por el motor al final de cada turno: programa (o cancela) el seguimiento del lead.
 async function actualizarSeguimiento(env, d) {
   if (!env.DB || !d.idLead) return;
-  await asegurarTablaSeguimientos(env);
+  const T = await asegurarTablaSeguimientos(env);
   const ahora = d.ahora || new Date();
   const ahoraIso = ahora.toISOString();
   const activo = d.edge !== "humano" && !d.estado.seguimiento_pausado && PASOS_SEGUIMIENTO.has(d.estado.paso);
   if (!activo) {
     const motivo = d.edge === "humano" ? "humano" : d.estado.seguimiento_pausado ? "pausado" : d.estado.paso || "";
-    await env.DB.prepare(`UPDATE isa3_seguimientos SET estado = 'cancelado', detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado IN ('pendiente', 'enviando')`)
+    await env.DB.prepare(`UPDATE ${T} SET estado = 'cancelado', detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado IN ('pendiente', 'enviando')`)
       .bind(motivo, ahoraIso, d.idLead).run();
     return;
   }
   const proximo = sumarMinutosHabiles(ahora, ESPERAS_SEGUIMIENTO_MIN[0]).toISOString();
   const valores = [d.executionId, d.conversationId, JSON.stringify(d.destino), d.estado.paso, JSON.stringify(d.estado), proximo, d.ultimoCliente || ahoraIso];
-  await env.DB.prepare(`INSERT INTO isa3_seguimientos (id_lead, execution_id, conversation_id, destino, paso, vars, intento, estado, proximo_en, ultimo_cliente_en, detalle, creado_en, actualizado_en)
+  await env.DB.prepare(`INSERT INTO ${T} (id_lead, execution_id, conversation_id, destino, paso, vars, intento, estado, proximo_en, ultimo_cliente_en, detalle, creado_en, actualizado_en)
     VALUES (?, ?, ?, ?, ?, ?, 0, 'pendiente', ?, ?, NULL, ?, ?)
     ON CONFLICT(id_lead) DO UPDATE SET execution_id = excluded.execution_id, conversation_id = excluded.conversation_id, destino = excluded.destino,
       paso = excluded.paso, vars = excluded.vars, intento = 0, estado = 'pendiente', proximo_en = excluded.proximo_en,
@@ -1444,20 +1467,20 @@ function mensajesSeguimiento(fila, ahora) {
 }
 
 async function tickSeguimientos(env, ahora, limite) {
-  await asegurarTablaSeguimientos(env);
+  const T = await asegurarTablaSeguimientos(env);
   // Fuera de horario habil no se manda nada (ej. Railway despierta la funcion de noche).
   if (sumarMinutosHabiles(ahora, 0).getTime() > ahora.getTime()) return [];
   const ahoraIso = ahora.toISOString();
-  const { results } = await env.DB.prepare(`SELECT * FROM isa3_seguimientos WHERE estado = 'pendiente' AND proximo_en <= ? ORDER BY proximo_en LIMIT ?`)
+  const { results } = await env.DB.prepare(`SELECT * FROM ${T} WHERE estado = 'pendiente' AND proximo_en <= ? ORDER BY proximo_en LIMIT ?`)
     .bind(ahoraIso, limite).all();
   const resumen = [];
   for (const fila of results || []) {
     // Reclamo: si el motor reprogramo la fila entre medio, proximo_en ya no coincide.
-    const claim = await env.DB.prepare(`UPDATE isa3_seguimientos SET estado = 'enviando', actualizado_en = ? WHERE id_lead = ? AND estado = 'pendiente' AND proximo_en = ?`)
+    const claim = await env.DB.prepare(`UPDATE ${T} SET estado = 'enviando', actualizado_en = ? WHERE id_lead = ? AND estado = 'pendiente' AND proximo_en = ?`)
       .bind(ahoraIso, fila.id_lead, fila.proximo_en).run();
     if (!claim.meta || claim.meta.changes !== 1) continue;
     const cerrar = (estado, detalle) =>
-      env.DB.prepare(`UPDATE isa3_seguimientos SET estado = ?, detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado = 'enviando'`)
+      env.DB.prepare(`UPDATE ${T} SET estado = ?, detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado = 'enviando'`)
         .bind(estado, detalle, ahoraIso, fila.id_lead).run();
     try {
       const estadoEj = await estadoEjecucion(env, fila.execution_id);
@@ -1476,10 +1499,10 @@ async function tickSeguimientos(env, ahora, limite) {
         continue;
       }
       if (s.ultimo) {
-        await env.DB.prepare(`UPDATE isa3_seguimientos SET estado = 'cerrado', intento = ?, ultimo_envio_en = ?, detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado = 'enviando'`)
+        await env.DB.prepare(`UPDATE ${T} SET estado = 'cerrado', intento = ?, ultimo_envio_en = ?, detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado = 'enviando'`)
           .bind(s.intento, ahoraIso, s.dentro24h ? "texto" : "plantilla", ahoraIso, fila.id_lead).run();
       } else {
-        await env.DB.prepare(`UPDATE isa3_seguimientos SET estado = 'pendiente', intento = ?, proximo_en = ?, ultimo_envio_en = ?, detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado = 'enviando'`)
+        await env.DB.prepare(`UPDATE ${T} SET estado = 'pendiente', intento = ?, proximo_en = ?, ultimo_envio_en = ?, detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado = 'enviando'`)
           .bind(s.intento, s.proximo, ahoraIso, s.dentro24h ? "texto" : "plantilla", ahoraIso, fila.id_lead).run();
       }
       resumen.push({ id: fila.id_lead, resultado: "enviado", intento: s.intento, via: s.dentro24h ? "texto" : "plantilla" });
@@ -1663,10 +1686,10 @@ async function handler(request, env) {
       if (a.tipo) {
         await enviarOLog(a);
       } else if (a.op === "guardar_tibio") {
-        await guardarEnD1(env, "leads_tibios_isa_v2", ["nombre", "ciudad", "tipo_proyecto", "presupuesto"], estado, idLead, username, conversationId);
+        await guardarEnD1(env, await tabla(env, "tibios"), ["nombre", "ciudad", "tipo_proyecto", "presupuesto"], estado, idLead, username, conversationId);
       } else if (a.op === "guardar_lead") {
         await guardarEnD1(
-          env, "leads_isa_v2",
+          env, await tabla(env, "calificados"),
           ["nombre", "ciudad", "tipo_proyecto", "presupuesto", "conjunto_o_barrio", "m2", "banos", "plazo", "correo", "tipo_agendamiento", "fecha_llamada", "hora_llamada"],
           { ...estado, ...(a.extra || {}) }, idLead, username, conversationId
         );

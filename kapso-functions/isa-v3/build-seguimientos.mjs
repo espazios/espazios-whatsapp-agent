@@ -13,7 +13,7 @@ const keep = new Set(("KAPSO_META_BASE KAPSO_PLATFORM_BASE CALENDAR_URL COBERTUR
  "fechaBogota pascua iso festivosColombia diasDisponibles bloque OPCIONES_TIPO filaCiudad CIUDADES_LISTA MUNICIPIOS_LISTA preguntar " +
  "PASOS_SEGUIMIENTO PASOS_AGENDA ESPERAS_SEGUIMIENTO_MIN ITEM_PENDIENTE preguntaSeguimiento introSeguimiento plantillaSeguimiento " +
  "sumarMinutosHabiles tablasSeguimientosListas asegurarTablaSeguimientos estadoEjecucion mensajesSeguimiento tickSeguimientos " +
- "handlerSeguimientos payloadMensaje enviar").split(" "));
+ "handlerSeguimientos payloadMensaje enviar TABLAS tablasResueltas tabla").split(" "));
 const out = ["// Kapso Function isa3-seguimientos — generada desde kapso-functions/isa-v3/motor.js (entrada handlerSeguimientos). La llama Railway cada minuto."];
 for (const c of chunks) if (keep.has(c.name)) out.push(c.lines.join("\n").replace(/^async function handlerSeguimientos\(/, "async function handler("));
 writeFileSync(process.argv[3], out.join("\n") + "\n");

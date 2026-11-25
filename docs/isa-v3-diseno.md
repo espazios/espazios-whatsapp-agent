@@ -244,7 +244,7 @@ Detalles que vale la pena saber:
   `vars.ultimo_inbound_at`.
 - Envía con `to` (teléfono) y `recipient` (business_scoped_user_id), así que
   funciona también con leads de anuncios de Instagram con teléfono oculto.
-- Guarda en las mismas tablas de v2 (`leads_tibios_isa_v2`, `leads_isa_v2`),
+- Guarda en las mismas tablas de v2 (hoy `leads_tibios` y `leads_calificados`; antes `leads_tibios_isa_v2` y `leads_isa_v2`),
   así los reportes existentes siguen sirviendo.
 - Llama a Railway con **todos** los campos (`banos`, `tipoProyecto`,
   `nombre`, `ciudad`, `proyecto`) — corrige de raíz el bug del detalle que
@@ -332,7 +332,7 @@ Workflow publicado (lock 9) e `isa3-motor` desplegado (lock 10).
 
 Reemplaza para v3 la maquinaria de v2 (`register-followup` / `process-followups`, que daba 404 porque se invocaba una función privada sin la API key del proyecto).
 
-- **Programación (motor).** Al final de cada turno, `isa3-motor` hace upsert en la tabla D1 `isa3_seguimientos` (una fila por lead) si queda una pregunta del flujo pendiente: del saludo hasta agendar, incluido "ya agendaste en el link?". Con agendado, cerrado, humano o "Ahora no", la fila se cancela. Cualquier mensaje del cliente reinicia la cadena en intento 0.
+- **Programación (motor).** Al final de cada turno, `isa3-motor` hace upsert en la tabla D1 `seguimientos` (una fila por lead) si queda una pregunta del flujo pendiente: del saludo hasta agendar, incluido "ya agendaste en el link?". Con agendado, cerrado, humano o "Ahora no", la fila se cancela. Cualquier mensaje del cliente reinicia la cadena en intento 0.
 - **Cadencia en horas hábiles** (lunes a viernes, 7am–7pm Bogotá, sin festivos):
   - intento 1 a los 10 min;
   - intento 2, 4 h después;
