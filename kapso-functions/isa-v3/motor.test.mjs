@@ -802,20 +802,6 @@ test("tick: fuera de horario hábil no envía nada", async () => {
   assert.equal(enviados, 0);
 });
 
-test("tick: borra filas terminadas de más de 90 días y conserva las recientes", async () => {
-  const db = d1();
-  const env = { DB: db, KAPSO_API_KEY: "x" };
-  sandbox.fetch = async () => ({ ok: true, text: async () => "", json: async () => ({}) });
-  await S.tickSeguimientos(env, new Date("2026-11-24T15:00:00Z"), 20); // crea la tabla
-  const ins = db.raw.prepare("INSERT INTO isa3_seguimientos (id_lead, estado, proximo_en, actualizado_en) VALUES (?, ?, ?, ?)");
-  ins.run("viejo", "cerrado", "2026-01-01T00:00:00Z", "2026-08-01T00:00:00Z");
-  ins.run("reciente", "cerrado", "2026-01-01T00:00:00Z", "2026-11-01T00:00:00Z");
-  ins.run("pendiente_viejo", "pendiente", "2030-01-01T00:00:00Z", "2026-08-01T00:00:00Z");
-  await S.tickSeguimientos(env, new Date("2026-11-24T15:00:00Z"), 20);
-  const ids = db.raw.prepare("select id_lead from isa3_seguimientos order by id_lead").all().map((r) => r.id_lead);
-  assert.deepEqual(ids, ["pendiente_viejo", "reciente"]);
-});
-
 test("tick: si la ejecución ya no está esperando, cancela sin enviar", async () => {
   const db = d1();
   let enviados = 0;

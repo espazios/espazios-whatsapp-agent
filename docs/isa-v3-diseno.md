@@ -348,3 +348,4 @@ Reemplaza para v3 la maquinaria de v2 (`register-followup` / `process-followups`
   - No recibe datos del cliente, así que llamarla de más no adelanta ni duplica envíos.
   - Si la ejecución ya no está `waiting` (por ejemplo, la tomó un humano), cancela sin enviar.
   - Necesita el secret `KAPSO_API_KEY`.
+  - Cuando falla un envío, el log guarda solo el código de error de WhatsApp, nunca la respuesta completa (puede traer el teléfono).

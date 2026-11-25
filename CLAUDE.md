@@ -47,8 +47,8 @@ El flujo es determinístico y la IA solo atiende desvíos. Diseño completo en
 **Tablas D1** (base compartida del proyecto en Kapso):
 - `leads_tibios_isa_v2`: nombre, ciudad, tipo y presupuesto.
 - `leads_isa_v2`: los 8 datos y el agendamiento.
-- `isa3_seguimientos`: cadena de seguimiento por lead. Las filas terminadas se
-  borran a los 90 días.
+- `isa3_seguimientos`: cadena de seguimiento por lead. Por decisión del usuario
+  (2026-11-25), por ahora no se borran filas de las tablas activas.
 
 La columna `version` vale `"v3"` en filas escritas por v3.
 
