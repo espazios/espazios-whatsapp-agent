@@ -1,6 +1,6 @@
 # Isa v3 — prompt del agente de desvíos
 
-Sincronizado con el nodo `agente_desvio` del Workflow "Isa v3" en Kapso. Es el único lugar donde Isa v3 usa IA.
+Sincronizado con el nodo `agente_desvio` del Workflow "Isa v3" en Kapso (publicado 2026-11-25, lock 28). Es el único lugar donde Isa v3 usa IA.
 
 ```
 1. Quién eres y cuál es tu trabajo aquí
