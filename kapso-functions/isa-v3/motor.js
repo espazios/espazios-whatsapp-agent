@@ -1272,6 +1272,7 @@ const PASOS_SEGUIMIENTO = new Set([
 ]);
 const PASOS_AGENDA = new Set(["post_estimado", "duda_o_agendar", "tipo_agendamiento", "llamada_dia", "llamada_franja", "agendado_link"]);
 const ESPERAS_SEGUIMIENTO_MIN = [10, 240, 480]; // antes del intento 1, 2 y 3
+const DIAS_RETENCION_SEGUIMIENTOS = 90;
 const ITEM_PENDIENTE = {
   nombre_confirmar: "tu nombre",
   nombre: "tu nombre",
@@ -1413,9 +1414,14 @@ function mensajesSeguimiento(fila, ahora) {
 
 async function tickSeguimientos(env, ahora, limite) {
   await asegurarTablaSeguimientos(env);
+  const ahoraIso = ahora.toISOString();
+  // Retencion: las filas terminadas guardan una copia de los datos del cliente;
+  // se borran a los 90 dias.
+  const limiteRetencion = new Date(ahora.getTime() - DIAS_RETENCION_SEGUIMIENTOS * 86400000).toISOString();
+  await env.DB.prepare(`DELETE FROM isa3_seguimientos WHERE estado IN ('cancelado', 'cerrado', 'fallido') AND actualizado_en < ?`)
+    .bind(limiteRetencion).run();
   // Fuera de horario habil no se manda nada (ej. Railway despierta la funcion de noche).
   if (sumarMinutosHabiles(ahora, 0).getTime() > ahora.getTime()) return [];
-  const ahoraIso = ahora.toISOString();
   const { results } = await env.DB.prepare(`SELECT * FROM isa3_seguimientos WHERE estado = 'pendiente' AND proximo_en <= ? ORDER BY proximo_en LIMIT ?`)
     .bind(ahoraIso, limite).all();
   const resumen = [];
@@ -1520,7 +1526,9 @@ async function enviar(env, destino, a) {
       body: JSON.stringify({ ...body, phoneNumberId: undefined }),
     });
     if (res.ok) return true;
-    console.log("envio fallido", res.status, await res.text().catch(() => ""));
+    // Solo el codigo de error: la respuesta completa puede traer el telefono del cliente.
+    const err = await res.json().catch(() => ({}));
+    console.log("envio fallido", res.status, (err.error && (err.error.code || err.error.type)) || "");
   }
   return false;
 }

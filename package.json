@@ -5,13 +5,11 @@
   "description": "Agente de ventas IA por WhatsApp para Espazios (remodelacion y carpinteria a medida).",
   "type": "module",
   "scripts": {
-    "generate-quote": "tsx scripts/generate-quote.ts",
     "dev": "tsx watch src/tools-server.ts",
     "start": "tsx src/tools-server.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@kapso/whatsapp-cloud-api": "^0.3.0",
     "dotenv": "^16.4.5",
     "fastify": "^5.1.0",
     "googleapis": "^144.0.0",

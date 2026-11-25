@@ -1,8 +1,6 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
-import { generateQuote, getQuotePdfBytes } from "./tools/cotizador/generate-quote.js";
-import type { QuoteInput } from "./tools/cotizador/field-map.js";
 import {
   calcularEstimado,
   paqueteDesdeTipoProyecto,
@@ -11,64 +9,19 @@ import {
 } from "./tools/estimado-ilustrativo/pricing.js";
 import { renderTarjeta, renderDetalle, type TarjetaPaqueteInput } from "./tools/estimado-ilustrativo/render.js";
 import { leerContenidoPaquete } from "./tools/estimado-ilustrativo/contenido.js";
-import { runFollowupsTick } from "./followups/processor.js";
 
 /**
- * Servidor de HERRAMIENTAS — no recibe conversaciones de WhatsApp.
+ * Servidor de HERRAMIENTAS de Isa (Railway) — no recibe conversaciones.
  *
- * Desde la decision de arquitectura del 2026-08-16: la nueva Isa vive como
- * un Workflow de Kapso con un `agent node` (Claude) como cerebro — Kapso
- * recibe/envia los mensajes y mantiene el estado de la conversacion. Este
- * servidor solo expone las herramientas de negocio que ese agent node llama
- * (webhook tools / MCP), empezando por la cotizacion. agendar_cita y
- * sync_hubspot se agregan aca mismo mas adelante.
- *
- * Debe quedar en una URL publica para que Kapso pueda llamarla (ver
- * PUBLIC_BASE_URL en .env.example).
+ * - POST /tools/estimado-ilustrativo y /tools/detalle-paquete: generan las
+ *   imagenes del estimado; las llama el motor de Isa v3 (Kapso Function
+ *   `isa3-motor`).
+ * - GET /tools/estimados/:id: sirve esas imagenes (cache en memoria, 1 h).
+ * - Cada minuto despierta la Kapso Function `isa3-seguimientos`.
  */
 const app = Fastify({ logger: true });
 
 app.get("/health", async () => ({ ok: true }));
-
-app.post("/tools/generar-cotizacion", async (req, reply) => {
-  // Kapso puede mandar los argumentos del tool en el body directo o
-  // envueltos en { input: {...} } (asi lo hace con las funciones desplegadas,
-  // ver docs/flows/step-types/agent-node.mdx) — aceptamos ambas formas.
-  const body = req.body as any;
-  const input = (body?.input ?? body) as Partial<QuoteInput>;
-  const missing = (
-    ["clienteNombre", "ciudad", "tipoProyecto", "metrosCuadrados", "nivelAcabado", "telefono"] as const
-  ).filter((field) => input[field] === undefined || input[field] === null || input[field] === "");
-  if (missing.length > 0) {
-    return reply.code(400).send({ error: `Faltan campos: ${missing.join(", ")}` });
-  }
-
-  try {
-    const quote = await generateQuote(input as QuoteInput);
-    const baseUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
-    return {
-      rangoBajo: quote.output.rangoBajo,
-      rangoAlto: quote.output.rangoAlto,
-      resumenSupuestos: quote.output.resumenSupuestos,
-      pdfUrl: `${baseUrl}/tools/cotizaciones/${quote.pdfDriveFileId}`,
-      spreadsheetUrl: quote.spreadsheetUrl,
-    };
-  } catch (err) {
-    req.log.error({ err }, "Fallo generando la cotizacion");
-    return reply.code(500).send({ error: "No se pudo generar la cotizacion." });
-  }
-});
-
-app.get<{ Params: { fileId: string } }>("/tools/cotizaciones/:fileId", async (req, reply) => {
-  try {
-    const bytes = await getQuotePdfBytes(req.params.fileId);
-    reply.header("Content-Type", "application/pdf");
-    return reply.send(bytes);
-  } catch (err) {
-    req.log.error({ err }, "Fallo sirviendo el PDF de la cotizacion");
-    return reply.code(404).send({ error: "PDF no encontrado." });
-  }
-});
 
 // --- Estimado ilustrativo (imagen con los 3 paquetes) ---
 // Efimero por diseno: no es un registro oficial (esa es la cotizacion real
@@ -95,10 +48,34 @@ interface EstimadoInput {
   tipoProyecto?: string;
 }
 
+// Tope de imagenes en memoria: si alguien llama los endpoints en masa, se
+// descartan las mas viejas en vez de agotar la memoria del servidor.
+const MAX_ESTIMADOS_EN_MEMORIA = 500;
+
 function guardarImagen(bytes: Buffer, baseUrl: string): string {
+  while (estimadosGenerados.size >= MAX_ESTIMADOS_EN_MEMORIA) {
+    const masViejo = estimadosGenerados.keys().next().value;
+    if (masViejo === undefined) break;
+    estimadosGenerados.delete(masViejo);
+  }
   const id = randomUUID();
   estimadosGenerados.set(id, { bytes, creadoEn: Date.now() });
   return `${baseUrl}/tools/estimados/${id}`;
+}
+
+/**
+ * Limpia los datos que llegan a los endpoints antes de dibujarlos: textos
+ * recortados (evita imagenes enormes o abuso) y m2/banos numericos validos.
+ * Devuelve el error a reportar, o null si todo esta bien.
+ */
+const MAX_TEXTO = 120;
+function limpiarTexto(valor: unknown): string {
+  return String(valor ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_TEXTO);
+}
+function validarMedidas(m2: number, banos: number | undefined): string | null {
+  if (!Number.isFinite(m2) || m2 < 10 || m2 > 1000) return "m2 debe ser un numero entre 10 y 1000";
+  if (banos !== undefined && banos !== 1 && banos !== 2) return "banos debe ser 1 o 2";
+  return null;
 }
 
 app.post("/tools/estimado-ilustrativo", async (req, reply) => {
@@ -111,9 +88,15 @@ app.post("/tools/estimado-ilustrativo", async (req, reply) => {
     return reply.code(400).send({ error: `Faltan campos: ${missing.join(", ")}` });
   }
 
+  const m2 = Number(input.m2);
+  const banos = input.banos !== undefined && input.banos !== null ? Number(input.banos) : undefined;
+  const errorMedidas = validarMedidas(m2, banos);
+  if (errorMedidas) return reply.code(400).send({ error: errorMedidas });
+  input.nombre = limpiarTexto(input.nombre);
+  input.ciudad = limpiarTexto(input.ciudad);
+  input.proyecto = limpiarTexto(input.proyecto);
+
   try {
-    const m2 = Number(input.m2);
-    const banos = input.banos !== undefined && input.banos !== null ? Number(input.banos) : undefined;
     const estimados = await calcularEstimado(m2, banos);
     const baseUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
 
@@ -197,10 +180,16 @@ app.post("/tools/detalle-paquete", async (req, reply) => {
     return reply.code(400).send({ error: `paquete debe ser uno de: ${PAQUETES.join(", ")}` });
   }
 
+  const m2 = Number(input.m2);
+  const banos = input.banos !== undefined && input.banos !== null ? Number(input.banos) : undefined;
+  const errorMedidas = validarMedidas(m2, banos);
+  if (errorMedidas) return reply.code(400).send({ error: errorMedidas });
+  input.nombre = limpiarTexto(input.nombre);
+  input.ciudad = limpiarTexto(input.ciudad);
+  input.proyecto = limpiarTexto(input.proyecto);
+
   try {
     const paquete = input.paquete as Paquete;
-    const m2 = Number(input.m2);
-    const banos = input.banos !== undefined && input.banos !== null ? Number(input.banos) : undefined;
     const estimado = (await calcularEstimado(m2, banos)).find((p) => p.paquete === paquete)!;
     const zonas = await leerContenidoPaquete(paquete, {
       banos: estimado.banos ?? undefined,
@@ -236,28 +225,6 @@ app.get<{ Params: { id: string } }>("/tools/estimados/:id", async (req, reply) =
   return reply.send(entry.bytes);
 });
 
-// --- Scheduler de seguimientos por inactividad (2026-09-25, v2) ---
-// Reemplaza al tick viejo que le pegaba a la Kapso Function
-// `process-followups` (la que dio 404 sin resolver durante semanas,
-// documentado en CLAUDE.md y docs/isa-v2-system-prompt.md). Ahora la
-// logica de negocio (validar, calcular la cadencia, armar el mensaje)
-// vive en `src/followups/` — este servidor ya corre 24/7 en Railway, y
-// eso fue justo el problema que resolvio bien desde el principio, asi que
-// el "cerebro" del seguimiento se muda para aca. Ver
-// `src/followups/processor.ts` para el contrato HTTP que todavia le
-// falta construir a Kapso (`FOLLOWUPS_LIST_URL`/`_CLAIM_URL`/
-// `_VALIDATE_URL`/`_RESOLVE_URL`) antes de que este tick tenga efecto.
-const FOLLOWUPS_TICK_MS = 60 * 1000; // 1 minuto
-
-setInterval(() => {
-  runFollowupsTick({
-    error: (o, msg) => app.log.error(o, msg),
-    info: (o, msg) => app.log.info(o, msg),
-    warn: (msg) => app.log.warn(msg),
-  });
-}, FOLLOWUPS_TICK_MS).unref();
-app.log.info("Scheduler de seguimientos v2 activo (procesa en Railway, cada 1 min)");
-
 // --- Seguimientos automaticos de Isa v3 (2026-11-25) ---
 // Isa v3 programa los seguimientos en D1 (tabla isa3_seguimientos) y la Kapso
 // Function publica `isa3-seguimientos` envia los que vencieron. Kapso no tiene
@@ -288,7 +255,7 @@ if (ISA3_SEGUIMIENTOS_URL !== "off") {
     } catch (err) {
       app.log.error({ err }, "fallo llamando a isa3-seguimientos");
     }
-  }, FOLLOWUPS_TICK_MS).unref();
+  }, 60 * 1000).unref();
   app.log.info("Seguimientos de Isa v3 activos (isa3-seguimientos cada 1 min)");
 }
 
