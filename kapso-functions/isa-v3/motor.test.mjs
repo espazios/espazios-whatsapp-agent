@@ -900,3 +900,24 @@ test("caso Yonathan 2: despues del estimado, 'Y uno de 42' y 'Dame la cotizació
   r = M.procesar(base, { texto: "el precio incluye el IVA?" }, { perfil: "", ahora: AHORA });
   assert.equal(r.edge, "desvio");
 });
+
+test("el agente pide el estimado con save_variable (pedir_estimado) y el motor lo genera, validando m2 y baños", () => {
+  const base = { paso: "post_estimado", turno: 9, nombre: "Yonathan Murillo", ciudad: "Bogotá", tipo_proyecto: "Intermedio", presupuesto: "$40",
+    conjunto_o_barrio: "Hayuelos", m2: 38, banos: 1, plazo: "Inmediato", correo: "y@x.co", estimado_enviado: true, aviso_datos: true,
+    m2_estimado: 38, banos_estimado: 1 };
+  // mismo apto: reenvia de una
+  let r = M.procesar({ ...base, pedir_estimado: true }, null, { perfil: "", ahora: AHORA });
+  assert.ok(r.acciones.some((a) => a.op === "estimado"));
+  assert.equal(r.vars.pedir_estimado, false);
+  // otro apto de 42 (banda 31-44): pregunta baños antes de estimar
+  r = M.procesar({ ...base, m2: "42", pedir_estimado: true }, null, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.m2, 42);
+  assert.equal(r.vars.paso, "banos");
+  // otro apto y el agente tambien guardo los baños: estima de una
+  r = M.procesar({ ...base, m2: 42, banos: 2, pedir_estimado: true }, null, { perfil: "", ahora: AHORA });
+  assert.ok(r.acciones.some((a) => a.op === "estimado"));
+  // m2 invalido guardado por la IA: se vuelve a preguntar
+  r = M.procesar({ ...base, m2: "mucho", pedir_estimado: true }, null, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.m2, null);
+  assert.equal(r.vars.paso, "m2");
+});

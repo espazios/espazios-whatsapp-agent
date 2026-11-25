@@ -825,6 +825,22 @@ function procesar(varsIn, entrada, ctx) {
     // Si llego un mensaje nuevo mientras interpretaba, se procesa ese.
   }
 
+  if (!entrada && (v.pedir_estimado === true || String(v.pedir_estimado).toLowerCase() === "true")) {
+    // El agente de desvios entendio que el cliente quiere (otra vez) el
+    // estimado, quizas con otros m2/banos, y lo pidio con save_variable.
+    asignar("pedir_estimado", false);
+    const m2 = Math.round(Number(String(v.m2 || "").replace(",", ".")));
+    if (!(m2 >= 15 && m2 <= 400)) asignar("m2", null);
+    else if (m2 !== v.m2) asignar("m2", m2);
+    const banos = Number(v.banos);
+    if (v.banos !== null && v.banos !== undefined && banos !== 1 && banos !== 2) asignar("banos", null);
+    else if (v.banos !== undefined && v.banos !== null && banos !== v.banos) asignar("banos", banos);
+    // Otro apartamento con los mismos banos guardados: se vuelven a preguntar.
+    if (v.m2_estimado && v.m2 && v.m2 !== v.m2_estimado && v.banos === v.banos_estimado) asignar("banos", null);
+    asignar("estimado_enviado", false);
+    asignar("paso_agenda", null);
+    return finalizar(v, set, acciones, ctx, { intro: "" });
+  }
   if (!entrada) {
     const p = siguientePaso(v);
     if (p === "cerrado" || p === "agendado" || p === "agendado_link" || p === "estimado") {
@@ -1738,6 +1754,8 @@ async function handler(request, env) {
           await new Promise((r) => setTimeout(r, 1500)); // orden: imagen general antes del detalle
         }
         nuevasVars.estimado_enviado = true;
+        nuevasVars.m2_estimado = estado.m2;
+        nuevasVars.banos_estimado = estado.banos || null;
         nuevasVars.paquetes_vistos = vistos;
       } else if (a.op === "detalle") {
         const paquete = PAQUETES.find((p) => p.id === a.paquete);
