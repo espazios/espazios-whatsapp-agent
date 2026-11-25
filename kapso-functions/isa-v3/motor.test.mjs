@@ -878,3 +878,25 @@ test("caso Nidia: 'Sipp' es un sí, no un nombre; y se repara un nombre mal guar
   const s = clonar(S.mensajesSeguimiento(fila, new Date("2026-11-24T15:10:00Z")));
   assert.match(s.mensajes[0].body, /^Nidia, sigo por aquí pendiente/);
 });
+
+test("caso Yonathan 2: despues del estimado, 'Y uno de 42' y 'Dame la cotización' vuelven a generar el estimado", () => {
+  const base = { paso: "post_estimado", turno: 9, nombre: "Yonathan Murillo", ciudad: "Bogotá", tipo_proyecto: "Intermedio", presupuesto: "$40",
+    conjunto_o_barrio: "Hayuelos", m2: 38, banos: 1, plazo: "Inmediato", correo: "y@x.co", estimado_enviado: true, aviso_datos: true };
+  let r = M.procesar(base, { texto: "Y uno de 42" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.m2, 42);
+  assert.equal(r.vars.banos, null);
+  assert.equal(r.edge, "esperar");
+  assert.equal(r.vars.paso, "banos"); // 42 m² cae en la banda de 31-44: pregunta baños y luego estima
+  r = M.procesar({ ...base, paso: "duda_o_agendar" }, { texto: "Dame la cotización" }, { perfil: "", ahora: AHORA });
+  assert.ok(r.acciones.some((a) => a.op === "estimado"));
+  r = M.procesar(base, { texto: "otro de 60 m2" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.m2, 60);
+  assert.ok(r.acciones.some((a) => a.op === "estimado"));
+  // No confundir: presupuesto, botones, agendar y dudas siguen su camino
+  r = M.procesar(base, { texto: "de 42 millones" }, { perfil: "", ahora: AHORA });
+  assert.ok(!r.acciones.some((a) => a.op === "estimado"));
+  r = M.procesar(base, { texto: "Agendar sesión", opcionId: "agendar" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.paso, "tipo_agendamiento");
+  r = M.procesar(base, { texto: "el precio incluye el IVA?" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.edge, "desvio");
+});

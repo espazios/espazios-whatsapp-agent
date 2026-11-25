@@ -872,8 +872,10 @@ function procesar(varsIn, entrada, ctx) {
   // se vuelve a generar sin IA. Si trae otro metraje se actualiza (y baños se
   // vuelve a preguntar si cae en 31-44). Antes iba a la IA, que no puede enviar
   // imagenes y llego a decir que "ya lo habia enviado" (caso Yonathan, 2026-11-25).
-  if (v.paso === "agendado" && pideNuevoEstimado(texto)) {
-    const m2 = m2EnTexto(texto);
+  // Despues del estimado el cliente puede pedirlo otra vez o con otros m2
+  // ("Y uno de 42", caso Yonathan 2026-11-25): lo hace el motor, no la IA.
+  if (PASOS_REESTIMAR.has(v.paso) && !opcion && (pideNuevoEstimado(texto) || m2Suelto(texto))) {
+    const m2 = m2EnTexto(texto) || m2Suelto(texto);
     if (m2 && m2 !== v.m2) {
       asignar("m2", m2);
       asignar("banos", null);
@@ -1349,6 +1351,16 @@ function m2EnTexto(texto) {
 }
 
 // Pide ver un estimado / cotizacion / precio (no la cotizacion formal de la sesion).
+const PASOS_REESTIMAR = new Set(["agendado", "agendado_link", "post_estimado", "duda_o_agendar"]);
+// "y uno de 42", "otro de 55", "para 60", "42" (sin unidad) despues del estimado.
+function m2Suelto(texto) {
+  const n = norm(texto).replace(/[?!.¿¡]/g, "").trim();
+  if (/millon|mill|palo|pesos|\$/.test(n)) return null;
+  const x = n.match(/^(?:y\s+)?(?:(?:uno|una|otro|otra|ahora|tambien|y)\s+)?(?:(?:de|para|con)\s+)?(\d{2,3})(?:\s*(?:m2|m²|mt2|mts2|mts|metros)(?:\s+cuadrados)?)?$/);
+  if (!x) return null;
+  const v = Number(x[1]);
+  return v >= 15 && v <= 400 ? v : null;
+}
 function pideNuevoEstimado(texto) {
   const n = norm(texto);
   if (/personalizada|formal|ejecutivo|sesion|reunion|llamada|cita/.test(n)) return false;
