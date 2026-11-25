@@ -258,6 +258,40 @@ setInterval(() => {
 }, FOLLOWUPS_TICK_MS).unref();
 app.log.info("Scheduler de seguimientos v2 activo (procesa en Railway, cada 1 min)");
 
+// --- Seguimientos automaticos de Isa v3 (2026-11-25) ---
+// Isa v3 programa los seguimientos en D1 (tabla isa3_seguimientos) y la Kapso
+// Function publica `isa3-seguimientos` envia los que vencieron. Kapso no tiene
+// cron, asi que este servidor la despierta cada minuto. La funcion no recibe
+// datos del cliente: llamarla de mas no adelanta ni duplica ningun envio.
+// ISA3_SEGUIMIENTOS_URL=off lo apaga sin tocar codigo.
+const ISA3_SEGUIMIENTOS_URL =
+  process.env.ISA3_SEGUIMIENTOS_URL ??
+  "https://api.kapso.ai/platform/v1/functions/d781d5ab-70c8-4230-ae40-5dd2c1791b21/invoke";
+
+if (ISA3_SEGUIMIENTOS_URL !== "off") {
+  setInterval(async () => {
+    try {
+      const res = await fetch(ISA3_SEGUIMIENTOS_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ limit: 20, ...(process.env.ISA3_TICK_TOKEN ? { token: process.env.ISA3_TICK_TOKEN } : {}) }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        app.log.error({ status: res.status, body: text.slice(0, 500) }, "isa3-seguimientos respondio con error");
+        return;
+      }
+      const data = JSON.parse(text) as { procesados?: unknown[] };
+      if (data.procesados && data.procesados.length > 0) {
+        app.log.info({ procesados: data.procesados }, "seguimientos de Isa v3 procesados");
+      }
+    } catch (err) {
+      app.log.error({ err }, "fallo llamando a isa3-seguimientos");
+    }
+  }, FOLLOWUPS_TICK_MS).unref();
+  app.log.info("Seguimientos de Isa v3 activos (isa3-seguimientos cada 1 min)");
+}
+
 const port = Number(process.env.PORT ?? 3000);
 app.listen({ port, host: "0.0.0.0" }).catch((err) => {
   app.log.error(err);

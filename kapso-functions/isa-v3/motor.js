@@ -814,6 +814,19 @@ function procesar(varsIn, entrada, ctx) {
   asignar("last_user_input", texto);
   asignar("mensaje_cliente", texto);
 
+  // Respuesta a una plantilla de seguimiento ("Sí, continuar" / "Ahora no" / "Cerrar por ahora").
+  if (v.seguimiento_pausado) asignar("seguimiento_pausado", false);
+  if (PASOS_SEGUIMIENTO.has(v.paso) && esContinuarSeguimiento(texto)) {
+    acciones.push(...preguntaSeguimiento(v.paso, v, "listo! seguimos 👇", ctx));
+    return { vars: set, acciones, edge: "esperar" };
+  }
+  if (PASOS_SEGUIMIENTO.has(v.paso) && esPausarSeguimiento(texto)) {
+    const nombre = v.nombre ? " " + v.nombre.split(" ")[0] : "";
+    acciones.push({ tipo: "texto", body: `listo${nombre}, no hay problema 😊 tus datos quedan guardados. Cuando quieras retomarlo, me escribes por aquí y seguimos desde donde quedamos.` });
+    asignar("seguimiento_pausado", true);
+    return { vars: set, acciones, edge: "esperar" };
+  }
+
   if (!opcion && pideHumano(texto)) {
     acciones.push({ tipo: "texto", body: "claro que sí, ya le aviso a una persona del equipo para que continúe contigo por aquí 😊" });
     asignar("handoff", true);
@@ -1237,6 +1250,230 @@ function extraerEntrada(mensajes, varsIn) {
 }
 
 // ---------------------------------------------------------------------------
+// Seguimientos automaticos por inactividad
+// ---------------------------------------------------------------------------
+// Cada vez que el motor deja una pregunta del flujo pendiente, programa un
+// seguimiento en D1 (isa3_seguimientos, una fila por lead). La Kapso Function
+// "isa3-seguimientos" (mismo codigo, entrada handlerSeguimientos) la llama
+// Railway cada minuto y manda los que vencieron:
+//   intento 1: 10 min habiles despues de la ultima actividad
+//   intento 2: 4 horas habiles despues del 1
+//   intento 3: 8 horas habiles despues del 2 (con tono de cierre) -> fin
+// Horas habiles: lunes a viernes 7am-7pm Bogota, sin festivos.
+// Dentro de las 24h de WhatsApp se repite la pregunta (con sus botones/lista);
+// fuera de esa ventana se usa una plantilla aprobada por Meta.
+// Cualquier mensaje del cliente reprograma desde cero (intento 0).
+
+const PASOS_SEGUIMIENTO = new Set([
+  "nombre_confirmar", "nombre", "ciudad", "ciudad_lista", "ciudad_municipio", "tipo_proyecto",
+  "presupuesto", "presupuesto_confirmar", "objecion1", "objecion2", "conjunto_o_barrio", "m2",
+  "banos", "plazo", "correo", "post_estimado", "duda_o_agendar", "tipo_agendamiento",
+  "llamada_dia", "llamada_franja", "agendado_link",
+]);
+const PASOS_AGENDA = new Set(["post_estimado", "duda_o_agendar", "tipo_agendamiento", "llamada_dia", "llamada_franja", "agendado_link"]);
+const ESPERAS_SEGUIMIENTO_MIN = [10, 240, 480]; // antes del intento 1, 2 y 3
+const ITEM_PENDIENTE = {
+  nombre_confirmar: "tu nombre",
+  nombre: "tu nombre",
+  ciudad: "la ciudad de tu vivienda",
+  ciudad_lista: "la ciudad de tu vivienda",
+  ciudad_municipio: "el municipio de tu vivienda",
+  tipo_proyecto: "el tipo de proyecto que tienes en mente",
+  presupuesto: "tu presupuesto aproximado",
+  presupuesto_confirmar: "tu presupuesto aproximado",
+  objecion1: "cómo quieres seguir con tu presupuesto",
+  objecion2: "cómo quieres seguir con tu presupuesto",
+  conjunto_o_barrio: "el conjunto o barrio de tu vivienda",
+  m2: "los metros cuadrados de tu apartamento",
+  banos: "cuántos baños tiene tu apartamento",
+  plazo: "cuándo te gustaría arrancar la obra",
+  correo: "tu correo",
+};
+
+function esContinuarSeguimiento(texto) {
+  return /^(si|sí),? continuar[.!]*$/.test(norm(texto));
+}
+function esPausarSeguimiento(texto) {
+  return /^(ahora no|cerrar por ahora)[.!]*$/.test(norm(texto));
+}
+
+// La pregunta pendiente, lista para reenviar. agendado_link no tiene pregunta
+// propia en preguntar(): se pregunta si ya agendo y se deja el link de nuevo.
+function preguntaSeguimiento(paso, v, intro, ctx) {
+  if (paso === "agendado_link") {
+    return [{ tipo: "cta", body: bloque(intro, "Pudiste agendar tu reunión? si aún no, aquí te dejo el link de nuevo 👇"), display: "Agendar reunión", url: CALENDAR_URL }];
+  }
+  return preguntar(paso, v, intro, ctx);
+}
+
+function introSeguimiento(intento, v) {
+  const nombre = v.nombre ? v.nombre.split(" ")[0] : "";
+  const conNombre = (s) => (nombre ? `${nombre}, ${s}` : s.charAt(0).toUpperCase() + s.slice(1));
+  if (intento === 1) return conNombre("sigo por aquí pendiente 😊");
+  if (intento === 2) return conNombre("te escribo de nuevo para que no se nos quede tu cotización a medias 🙂");
+  return conNombre("no te quiero llenar de mensajes 🙂 te dejo esto por aquí y, si prefieres retomarlo más adelante, me escribes cuando quieras y seguimos desde donde quedamos.");
+}
+
+function plantillaSeguimiento(intento, paso, v) {
+  const nombre = v.nombre ? v.nombre.split(" ")[0] : "de nuevo";
+  const final = intento >= ESPERAS_SEGUIMIENTO_MIN.length;
+  const param = (parameter_name, text) => ({ type: "text", parameter_name, text });
+  const item = PASOS_AGENDA.has(paso) ? "el agendamiento de tu sesión" : ITEM_PENDIENTE[paso] || "un dato";
+  if (!v.estimado_enviado) {
+    return { tipo: "plantilla", nombre: final ? "isa_seguimiento_precalificacion_final" : "isa_seguimiento_precalificacion_1", idioma: "es", params: [param("customer_name", nombre), param("pending_item", item)] };
+  }
+  if (final) {
+    return { tipo: "plantilla", nombre: "isa_seguimiento_cotizacion_final", idioma: "es", params: [param("customer_name", nombre), param("pending_item", item)] };
+  }
+  const proyecto = v.conjunto_o_barrio ? `tu proyecto en ${v.conjunto_o_barrio}` : "tu proyecto";
+  return { tipo: "plantilla", nombre: "isa_seguimiento_cotizacion_1", idioma: "es", params: [param("customer_name", nombre), param("project_reference", proyecto), param("pending_item", item)] };
+}
+
+// Suma minutos contando solo lunes a viernes de 7am a 7pm (Bogota, UTC-5 fijo), sin festivos.
+function sumarMinutosHabiles(desde, minutos) {
+  const OFF = 5 * 3600000;
+  const DIA = 86400000;
+  let t = desde.getTime() - OFF; // reloj local de Bogota expresado como UTC
+  let restante = minutos * 60000;
+  const y = new Date(t).getUTCFullYear();
+  const festivos = new Set([...festivosColombia(y), ...festivosColombia(y + 1)]);
+  for (let i = 0; i < 400; i++) {
+    const d = new Date(t);
+    const dia = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    const inicio = dia + 7 * 3600000;
+    const fin = dia + 19 * 3600000;
+    const habil = d.getUTCDay() >= 1 && d.getUTCDay() <= 5 && !festivos.has(iso(dia));
+    if (!habil || t >= fin) { t = dia + DIA + 7 * 3600000; continue; }
+    if (t < inicio) t = inicio;
+    if (t + restante <= fin) return new Date(t + restante + OFF);
+    restante -= fin - t;
+    t = dia + DIA + 7 * 3600000;
+  }
+  return new Date(desde.getTime() + minutos * 60000);
+}
+
+const tablasSeguimientosListas = new WeakSet();
+async function asegurarTablaSeguimientos(env) {
+  if (tablasSeguimientosListas.has(env.DB)) return;
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS isa3_seguimientos (
+    id_lead TEXT PRIMARY KEY, execution_id TEXT, conversation_id TEXT, destino TEXT, paso TEXT, vars TEXT,
+    intento INTEGER DEFAULT 0, estado TEXT, proximo_en TEXT, ultimo_cliente_en TEXT, ultimo_envio_en TEXT,
+    detalle TEXT, creado_en TEXT, actualizado_en TEXT)`).run();
+  tablasSeguimientosListas.add(env.DB);
+}
+
+// Llamado por el motor al final de cada turno: programa (o cancela) el seguimiento del lead.
+async function actualizarSeguimiento(env, d) {
+  if (!env.DB || !d.idLead) return;
+  await asegurarTablaSeguimientos(env);
+  const ahora = d.ahora || new Date();
+  const ahoraIso = ahora.toISOString();
+  const activo = d.edge !== "humano" && !d.estado.seguimiento_pausado && PASOS_SEGUIMIENTO.has(d.estado.paso);
+  if (!activo) {
+    const motivo = d.edge === "humano" ? "humano" : d.estado.seguimiento_pausado ? "pausado" : d.estado.paso || "";
+    await env.DB.prepare(`UPDATE isa3_seguimientos SET estado = 'cancelado', detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado IN ('pendiente', 'enviando')`)
+      .bind(motivo, ahoraIso, d.idLead).run();
+    return;
+  }
+  const proximo = sumarMinutosHabiles(ahora, ESPERAS_SEGUIMIENTO_MIN[0]).toISOString();
+  const valores = [d.executionId, d.conversationId, JSON.stringify(d.destino), d.estado.paso, JSON.stringify(d.estado), proximo, d.ultimoCliente || ahoraIso];
+  await env.DB.prepare(`INSERT INTO isa3_seguimientos (id_lead, execution_id, conversation_id, destino, paso, vars, intento, estado, proximo_en, ultimo_cliente_en, detalle, creado_en, actualizado_en)
+    VALUES (?, ?, ?, ?, ?, ?, 0, 'pendiente', ?, ?, NULL, ?, ?)
+    ON CONFLICT(id_lead) DO UPDATE SET execution_id = excluded.execution_id, conversation_id = excluded.conversation_id, destino = excluded.destino,
+      paso = excluded.paso, vars = excluded.vars, intento = 0, estado = 'pendiente', proximo_en = excluded.proximo_en,
+      ultimo_cliente_en = excluded.ultimo_cliente_en, detalle = NULL, actualizado_en = excluded.actualizado_en`)
+    .bind(d.idLead, ...valores, ahoraIso, ahoraIso).run();
+}
+
+// Estado de la ejecucion en Kapso (null si no se pudo consultar).
+async function estadoEjecucion(env, executionId) {
+  if (!executionId || !env.KAPSO_API_KEY) return null;
+  try {
+    const res = await fetch(`${KAPSO_PLATFORM_BASE}/workflow_executions/${executionId}`, { headers: { "X-API-Key": env.KAPSO_API_KEY } });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return (j.data && j.data.status) || j.status || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Decide que mandar para un seguimiento vencido. Puro (sin red), para los tests.
+function mensajesSeguimiento(fila, ahora) {
+  const v = JSON.parse(fila.vars || "{}");
+  const intento = Number(fila.intento || 0) + 1;
+  const ultimoCliente = fila.ultimo_cliente_en ? Date.parse(fila.ultimo_cliente_en) : 0;
+  const dentro24h = ahora.getTime() - ultimoCliente < 23.5 * 3600000;
+  const mensajes = dentro24h
+    ? preguntaSeguimiento(fila.paso, v, introSeguimiento(intento, v), { ahora })
+    : [plantillaSeguimiento(intento, fila.paso, v)];
+  const ultimo = intento >= ESPERAS_SEGUIMIENTO_MIN.length;
+  return { intento, dentro24h, mensajes, ultimo, proximo: ultimo ? null : sumarMinutosHabiles(ahora, ESPERAS_SEGUIMIENTO_MIN[intento]).toISOString() };
+}
+
+async function tickSeguimientos(env, ahora, limite) {
+  await asegurarTablaSeguimientos(env);
+  // Fuera de horario habil no se manda nada (ej. Railway despierta la funcion de noche).
+  if (sumarMinutosHabiles(ahora, 0).getTime() > ahora.getTime()) return [];
+  const ahoraIso = ahora.toISOString();
+  const { results } = await env.DB.prepare(`SELECT * FROM isa3_seguimientos WHERE estado = 'pendiente' AND proximo_en <= ? ORDER BY proximo_en LIMIT ?`)
+    .bind(ahoraIso, limite).all();
+  const resumen = [];
+  for (const fila of results || []) {
+    // Reclamo: si el motor reprogramo la fila entre medio, proximo_en ya no coincide.
+    const claim = await env.DB.prepare(`UPDATE isa3_seguimientos SET estado = 'enviando', actualizado_en = ? WHERE id_lead = ? AND estado = 'pendiente' AND proximo_en = ?`)
+      .bind(ahoraIso, fila.id_lead, fila.proximo_en).run();
+    if (!claim.meta || claim.meta.changes !== 1) continue;
+    const cerrar = (estado, detalle) =>
+      env.DB.prepare(`UPDATE isa3_seguimientos SET estado = ?, detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado = 'enviando'`)
+        .bind(estado, detalle, ahoraIso, fila.id_lead).run();
+    try {
+      const estadoEj = await estadoEjecucion(env, fila.execution_id);
+      if (estadoEj && estadoEj !== "waiting") {
+        await cerrar("cancelado", `ejecucion_${estadoEj}`);
+        resumen.push({ id: fila.id_lead, resultado: "cancelado", detalle: estadoEj });
+        continue;
+      }
+      const s = mensajesSeguimiento(fila, ahora);
+      const destino = JSON.parse(fila.destino || "{}");
+      let ok = true;
+      for (const m of s.mensajes) ok = (await enviar(env, destino, m)) && ok;
+      if (!ok) {
+        await cerrar("fallido", `envio_fallido_intento_${s.intento}${s.dentro24h ? "" : "_plantilla"}`);
+        resumen.push({ id: fila.id_lead, resultado: "fallido", intento: s.intento });
+        continue;
+      }
+      if (s.ultimo) {
+        await env.DB.prepare(`UPDATE isa3_seguimientos SET estado = 'cerrado', intento = ?, ultimo_envio_en = ?, detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado = 'enviando'`)
+          .bind(s.intento, ahoraIso, s.dentro24h ? "texto" : "plantilla", ahoraIso, fila.id_lead).run();
+      } else {
+        await env.DB.prepare(`UPDATE isa3_seguimientos SET estado = 'pendiente', intento = ?, proximo_en = ?, ultimo_envio_en = ?, detalle = ?, actualizado_en = ? WHERE id_lead = ? AND estado = 'enviando'`)
+          .bind(s.intento, s.proximo, ahoraIso, s.dentro24h ? "texto" : "plantilla", ahoraIso, fila.id_lead).run();
+      }
+      resumen.push({ id: fila.id_lead, resultado: "enviado", intento: s.intento, via: s.dentro24h ? "texto" : "plantilla" });
+    } catch (err) {
+      await cerrar("fallido", String(err).slice(0, 200));
+      resumen.push({ id: fila.id_lead, resultado: "error", detalle: String(err).slice(0, 200) });
+    }
+  }
+  return resumen;
+}
+
+// Entrada de la Kapso Function "isa3-seguimientos" (Railway la llama cada minuto).
+// En el despliegue se renombra a `handler` (y el handler del motor a `handlerMotor`).
+// No recibe datos del cliente: solo procesa lo que ya vencio en D1, asi que
+// llamarla de mas no adelanta ni duplica ningun envio.
+async function handlerSeguimientos(request, env) {
+  const body = await request.json().catch(() => ({}));
+  if (env.ISA3_TICK_TOKEN && body.token !== env.ISA3_TICK_TOKEN) {
+    return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  }
+  const limite = Math.min(Math.max(Number(body.limit) || 20, 1), 50);
+  const procesados = env.DB ? await tickSeguimientos(env, new Date(), limite) : [];
+  return new Response(JSON.stringify({ ok: true, procesados }), { headers: { "Content-Type": "application/json" } });
+}
+
+// ---------------------------------------------------------------------------
 // IO: envio de mensajes, Railway y D1
 // ---------------------------------------------------------------------------
 
@@ -1267,6 +1504,9 @@ function payloadMensaje(a) {
   }
   if (a.tipo === "cta") {
     return { type: "interactive", interactive: { type: "cta_url", body: { text: a.body }, action: { name: "cta_url", parameters: { display_text: a.display, url: a.url } } } };
+  }
+  if (a.tipo === "plantilla") {
+    return { type: "template", template: { name: a.nombre, language: { code: a.idioma }, components: [{ type: "body", parameters: a.params }] } };
   }
   throw new Error("tipo de mensaje desconocido: " + a.tipo);
 }
@@ -1433,10 +1673,20 @@ async function handler(request, env) {
     }
   }
 
+  try {
+    await actualizarSeguimiento(env, {
+      idLead, edge: res.edge, estado: { ...estado, ...nuevasVars }, destino, conversationId,
+      executionId: system.flow_execution_id || system.workflow_execution_id || system.execution_id || null,
+      ultimoCliente: nuevasVars.ultimo_inbound_at || vars.ultimo_inbound_at || null,
+    });
+  } catch (err) {
+    console.log("seguimiento no programado", String(err));
+  }
+
   return new Response(JSON.stringify({ next_edge: res.edge, vars: nuevasVars }), {
     headers: { "Content-Type": "application/json" },
   });
 }
 
 // Para los tests (node:vm). No afecta la ejecucion en Kapso.
-globalThis.__isa3 = { resultadoInterpreteDe, opcionDesdeEtiqueta, ETIQUETAS_INTERPRETE, procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, franjaEnTexto, interpretarDia, payloadMensaje, guardarEnD1, datosLeadPrevio };
+globalThis.__isa3 = { resultadoInterpreteDe, opcionDesdeEtiqueta, ETIQUETAS_INTERPRETE, procesar, extraerEntrada, mensajesEstimado, mensajeDetalle, interpretarPresupuesto, interpretarM2, interpretarPlazo, buscarCiudad, interpretarTipo, nombrePerfilValido, extraerNombreDeTexto, festivosColombia, diasDisponibles, interpretarFranja, franjaEnTexto, interpretarDia, payloadMensaje, guardarEnD1, datosLeadPrevio, sumarMinutosHabiles, mensajesSeguimiento, plantillaSeguimiento, actualizarSeguimiento, tickSeguimientos };

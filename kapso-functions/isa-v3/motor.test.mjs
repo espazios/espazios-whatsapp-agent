@@ -665,3 +665,155 @@ test("sin lead previo: saludo normal", () => {
   const r = c.turno("Hola");
   assert.match(textos(r), /Hablo con Dago M L\?/);
 });
+
+// ---------------------------------------------------------------------------
+// Seguimientos automaticos
+// ---------------------------------------------------------------------------
+import { DatabaseSync } from "node:sqlite";
+// D1 de mentiras sobre SQLite en memoria (misma API que usa el motor).
+function d1() {
+  const db = new DatabaseSync(":memory:");
+  return {
+    raw: db,
+    prepare(sql) {
+      let args = [];
+      const st = {
+        bind: (...a) => { args = a.map((x) => (x === undefined ? null : x)); return st; },
+        run: async () => { const r = db.prepare(sql).run(...args); return { meta: { changes: r.changes } }; },
+        first: async () => db.prepare(sql).get(...args) || null,
+        all: async () => ({ results: db.prepare(sql).all(...args) }),
+      };
+      return st;
+    },
+  };
+}
+const S = sandbox.__isa3;
+const bogota = (d) => new Date(d).toLocaleString("sv-SE", { timeZone: "America/Bogota" }).slice(0, 16);
+
+test("horas hábiles: 10 min, cruce de las 7pm, fin de semana y festivo", () => {
+  assert.equal(bogota(S.sumarMinutosHabiles(new Date("2026-11-24T15:00:00Z"), 10)), "2026-11-24 10:10"); // martes 10am
+  assert.equal(bogota(S.sumarMinutosHabiles(new Date("2026-11-24T23:55:00Z"), 10)), "2026-11-25 07:05"); // martes 6:55pm: 5 min hoy + 5 mañana
+  assert.equal(bogota(S.sumarMinutosHabiles(new Date("2026-11-24T22:00:00Z"), 240)), "2026-11-25 09:00"); // 5pm + 4h: 2h hoy + 2h mañana
+  assert.equal(bogota(S.sumarMinutosHabiles(new Date("2026-11-28T15:00:00Z"), 10)), "2026-11-30 07:10"); // sábado -> lunes
+  assert.equal(bogota(S.sumarMinutosHabiles(new Date("2026-12-08T03:00:00Z"), 10)), "2026-12-09 07:10"); // 8 dic festivo
+});
+
+test("seguimiento dentro de 24h: repite la pregunta pendiente con botones; fuera de 24h usa plantilla", () => {
+  const fila = { paso: "banos", intento: 0, ultimo_cliente_en: "2026-11-24T15:00:00Z", vars: JSON.stringify({ nombre: "Ana María", estimado_enviado: false }) };
+  let s = clonar(S.mensajesSeguimiento(fila, new Date("2026-11-24T15:10:00Z")));
+  assert.equal(s.intento, 1);
+  assert.equal(s.dentro24h, true);
+  assert.equal(s.mensajes[0].tipo, "botones");
+  assert.match(s.mensajes[0].body, /^Ana, sigo por aquí pendiente 😊\n\n\*Cuántos baños/);
+  assert.equal(bogota(s.proximo), "2026-11-24 14:10");
+
+  s = clonar(S.mensajesSeguimiento({ ...fila, intento: 2 }, new Date("2026-11-26T15:00:00Z")));
+  assert.equal(s.ultimo, true);
+  assert.equal(s.proximo, null);
+  assert.equal(s.mensajes[0].tipo, "plantilla");
+  assert.equal(s.mensajes[0].nombre, "isa_seguimiento_precalificacion_final");
+  assert.deepEqual(s.mensajes[0].params.map((p) => p.text), ["Ana", "cuántos baños tiene tu apartamento"]);
+});
+
+test("plantilla después del estimado: cotización_1 con referencia al proyecto", () => {
+  const p = clonar(S.plantillaSeguimiento(1, "tipo_agendamiento", { nombre: "Luis", estimado_enviado: true, conjunto_o_barrio: "Porto 13" }));
+  assert.equal(p.nombre, "isa_seguimiento_cotizacion_1");
+  assert.deepEqual(p.params.map((x) => x.text), ["Luis", "tu proyecto en Porto 13", "el agendamiento de tu sesión"]);
+  const pl = M.payloadMensaje(p);
+  assert.equal(pl.type, "template");
+  assert.equal(pl.template.components[0].parameters[0].parameter_name, "customer_name");
+});
+
+test("botones de la plantilla: 'Sí, continuar' repite la pregunta; 'Ahora no' pausa sin perder datos", () => {
+  const c = conversacion("Dago M L");
+  c.turno("hola"); c.turno("si"); c.turno("bogota");
+  let r = c.turno("Sí, continuar");
+  assert.equal(c.vars.paso, "tipo_proyecto");
+  assert.equal(r.acciones[0].tipo, "lista");
+  assert.match(r.acciones[0].body, /^listo! seguimos/);
+  r = c.turno("Ahora no");
+  assert.equal(c.vars.seguimiento_pausado, true);
+  assert.equal(c.vars.ciudad, "Bogotá");
+  assert.match(textos(r), /seguimos desde donde quedamos/);
+  r = c.turno("Remodelación Total", { opcion: "tp_total" });
+  assert.equal(c.vars.seguimiento_pausado, false);
+  assert.equal(c.vars.tipo_proyecto, "Remodelación Total");
+});
+
+test("D1: el motor programa, reprograma y cancela; el tick envía y avanza los intentos", async () => {
+  const db = d1();
+  const enviados = [];
+  const env = { DB: db, KAPSO_API_KEY: "x" };
+  sandbox.fetch = async (url, init) => {
+    if (String(url).includes("/workflow_executions/")) return { ok: true, json: async () => ({ data: { status: "waiting" } }) };
+    enviados.push(JSON.parse(init.body));
+    return { ok: true, text: async () => "" };
+  };
+  const base = { idLead: "57300", edge: "esperar", destino: { phoneNumberId: "1", to: "57300" }, conversationId: "c1", executionId: "e1" };
+  const t0 = new Date("2026-11-24T15:00:00Z");
+  await S.actualizarSeguimiento(env, { ...base, estado: { paso: "presupuesto", nombre: "Ana" }, ahora: t0, ultimoCliente: t0.toISOString() });
+  let fila = db.raw.prepare("select * from isa3_seguimientos").get();
+  assert.equal(fila.estado, "pendiente");
+  assert.equal(bogota(fila.proximo_en), "2026-11-24 10:10");
+
+  // antes de vencer no manda nada
+  assert.equal((await S.tickSeguimientos(env, new Date("2026-11-24T15:05:00Z"), 20)).length, 0);
+  // vence: intento 1
+  let res = await S.tickSeguimientos(env, new Date("2026-11-24T15:11:00Z"), 20);
+  assert.equal(res[0].resultado, "enviado");
+  assert.equal(enviados.length, 1);
+  assert.equal(enviados[0].to, "57300");
+  assert.match(enviados[0].text.body, /Ana, sigo por aquí pendiente/);
+  fila = db.raw.prepare("select * from isa3_seguimientos").get();
+  assert.equal(fila.intento, 1);
+  assert.equal(bogota(fila.proximo_en), "2026-11-24 14:11");
+
+  // el cliente responde: vuelve a intento 0 y a 10 min
+  const t1 = new Date("2026-11-24T16:00:00Z");
+  await S.actualizarSeguimiento(env, { ...base, estado: { paso: "conjunto_o_barrio", nombre: "Ana" }, ahora: t1, ultimoCliente: t1.toISOString() });
+  fila = db.raw.prepare("select * from isa3_seguimientos").get();
+  assert.equal(fila.intento, 0);
+  assert.equal(fila.paso, "conjunto_o_barrio");
+
+  // intentos 2 y 3 (el 3 cierra la cadena)
+  await S.tickSeguimientos(env, new Date("2026-11-24T16:11:00Z"), 20);
+  await S.tickSeguimientos(env, new Date("2026-11-24T21:00:00Z"), 20);
+  res = await S.tickSeguimientos(env, new Date("2026-11-25T21:00:00Z"), 20);
+  assert.equal(res[0].intento, 3);
+  fila = db.raw.prepare("select * from isa3_seguimientos").get();
+  assert.equal(fila.estado, "cerrado");
+  // mas de 24h sin que el cliente escriba: el ultimo va por plantilla
+  assert.equal(enviados[enviados.length - 1].template.name, "isa_seguimiento_precalificacion_final");
+  assert.equal((await S.tickSeguimientos(env, new Date("2026-12-10T21:00:00Z"), 20)).length, 0);
+
+  // agendado o humano: se cancela
+  await S.actualizarSeguimiento(env, { ...base, estado: { paso: "presupuesto" }, ahora: t1 });
+  await S.actualizarSeguimiento(env, { ...base, estado: { paso: "agendado" }, ahora: t1 });
+  assert.equal(db.raw.prepare("select estado from isa3_seguimientos").get().estado, "cancelado");
+});
+
+test("tick: fuera de horario hábil no envía nada", async () => {
+  const db = d1();
+  let enviados = 0;
+  const env = { DB: db, KAPSO_API_KEY: "x" };
+  sandbox.fetch = async () => { enviados++; return { ok: true, text: async () => "", json: async () => ({}) }; };
+  await S.actualizarSeguimiento(env, { idLead: "1", edge: "esperar", destino: {}, executionId: "e", estado: { paso: "m2" }, ahora: new Date("2026-11-24T15:00:00Z") });
+  assert.equal((await S.tickSeguimientos(env, new Date("2026-11-25T03:00:00Z"), 20)).length, 0); // 10pm
+  assert.equal(enviados, 0);
+});
+
+test("tick: si la ejecución ya no está esperando, cancela sin enviar", async () => {
+  const db = d1();
+  let enviados = 0;
+  const env = { DB: db, KAPSO_API_KEY: "x" };
+  sandbox.fetch = async (url) => {
+    if (String(url).includes("/workflow_executions/")) return { ok: true, json: async () => ({ data: { status: "handoff" } }) };
+    enviados++;
+    return { ok: true, text: async () => "" };
+  };
+  const t0 = new Date("2026-11-24T15:00:00Z");
+  await S.actualizarSeguimiento(env, { idLead: "1", edge: "esperar", destino: {}, executionId: "e", estado: { paso: "m2" }, ahora: t0 });
+  const res = await S.tickSeguimientos(env, new Date("2026-11-24T16:00:00Z"), 20);
+  assert.equal(res[0].resultado, "cancelado");
+  assert.equal(enviados, 0);
+});

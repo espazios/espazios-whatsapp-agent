@@ -2249,6 +2249,19 @@ invertir esos dos triggers. Isa v3 sigue tambien en el numero de pruebas
 - Columna `version` en ambas tablas: "v3" en filas escritas por v3; vacia =
   v2 o anterior.
 
+## Isa v3: seguimientos automaticos, 2026-11-25
+
+Ver `docs/isa-v3-diseno.md` ("Seguimientos automáticos"). Resumen:
+- El motor programa en D1 (`isa3_seguimientos`) cada pregunta pendiente.
+- La funcion publica `isa3-seguimientos` envia los vencidos (10 min / 4 h / 8 h habiles; texto dentro de 24 h, plantilla fuera).
+- Railway la despierta cada minuto (`ISA3_SEGUIMIENTOS_URL=off` lo apaga).
+
+Pendiente:
+1. Pegar el secret `KAPSO_API_KEY` en `isa3-seguimientos`.
+2. Mezclar a `master` para que Railway empiece a llamarla.
+
+El 404 de v2 era auth: invoke de una funcion privada sin la API key del proyecto (Kapso responde 404 para funcion privada o inexistente).
+
 ## Pendiente de informacion (bloquea partes del flujo)
 
 **Estimado ilustrativo: COMPLETO y probado end-to-end** (autenticacion +

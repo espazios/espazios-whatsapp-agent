@@ -327,3 +327,24 @@ Pendiente: en la primera prueba real, revisar el `console.log("interprete", ...)
 de `isa3-motor` para confirmar la forma real del evento de decisión y
 ajustar `resultadoInterpreteDe` si la etiqueta viene en otro campo.
 Workflow publicado (lock 9) e `isa3-motor` desplegado (lock 10).
+
+## Seguimientos automáticos (2026-11-25)
+
+Reemplaza para v3 la maquinaria de v2 (`register-followup` / `process-followups`, que daba 404 porque se invocaba una función privada sin la API key del proyecto).
+
+- **Programación (motor).** Al final de cada turno, `isa3-motor` hace upsert en la tabla D1 `isa3_seguimientos` (una fila por lead) si queda una pregunta del flujo pendiente: del saludo hasta agendar, incluido "ya agendaste en el link?". Con agendado, cerrado, humano o "Ahora no", la fila se cancela. Cualquier mensaje del cliente reinicia la cadena en intento 0.
+- **Cadencia en horas hábiles** (lunes a viernes, 7am–7pm Bogotá, sin festivos):
+  - intento 1 a los 10 min;
+  - intento 2, 4 h después;
+  - intento 3, 8 h después, con tono de cierre. Ahí termina la cadena.
+  - Fuera de horario no se envía nada.
+- **Mensaje.** Dentro de las 24 h desde el último mensaje del cliente: un intro corto más la misma pregunta pendiente, con sus botones o lista. Fuera de las 24 h, una plantilla aprobada:
+  - antes del estimado: `isa_seguimiento_precalificacion_1` / `_final`;
+  - después del estimado: `isa_seguimiento_cotizacion_1` / `_final`.
+  - Los botones "Sí, continuar" vuelven a hacer la pregunta. "Ahora no" o "Cerrar por ahora" despiden sin borrar datos y no se vuelve a insistir.
+- **Envío.** La Kapso Function pública `isa3-seguimientos` (`d781d5ab-70c8-4230-ae40-5dd2c1791b21`):
+  - Se genera desde `motor.js` con `build-seguimientos.mjs`.
+  - Railway (`tools-server.ts`) la llama cada minuto.
+  - No recibe datos del cliente, así que llamarla de más no adelanta ni duplica envíos.
+  - Si la ejecución ya no está `waiting` (por ejemplo, la tomó un humano), cancela sin enviar.
+  - Necesita el secret `KAPSO_API_KEY`.
