@@ -833,6 +833,21 @@ function procesar(varsIn, entrada, ctx) {
     return { vars: set, acciones, edge: "humano" };
   }
 
+  // Ya agendado (o retomado de la base) y pide un estimado/cotizacion nueva:
+  // se vuelve a generar sin IA. Si trae otro metraje se actualiza (y baños se
+  // vuelve a preguntar si cae en 31-44). Antes iba a la IA, que no puede enviar
+  // imagenes y llego a decir que "ya lo habia enviado" (caso Yonathan, 2026-11-25).
+  if (v.paso === "agendado" && pideNuevoEstimado(texto)) {
+    const m2 = m2EnTexto(texto);
+    if (m2 && m2 !== v.m2) {
+      asignar("m2", m2);
+      asignar("banos", null);
+    }
+    asignar("estimado_enviado", false);
+    asignar("paso_agenda", null);
+    return finalizar(v, set, acciones, ctx, { intro: "claro!" });
+  }
+
   // Conversacion ya cerrada o agendada: todo lo que escriba lo atiende la IA
   if (["cerrado", "agendado"].includes(v.paso)) {
     asignar("pregunta_pendiente", "");
@@ -1289,6 +1304,23 @@ const ITEM_PENDIENTE = {
   plazo: "cuándo te gustaría arrancar la obra",
   correo: "tu correo",
 };
+
+// Metraje escrito junto a su unidad ("38m2", "45 metros"). Solo valores razonables.
+function m2EnTexto(texto) {
+  const x = norm(texto).match(/(\d{2,3}(?:[.,]\d+)?)\s*(m2|m²|mt2|mts2|mts|metros)/);
+  if (!x) return null;
+  const v = Math.round(Number(x[1].replace(",", ".")));
+  return v >= 15 && v <= 400 ? v : null;
+}
+
+// Pide ver un estimado / cotizacion / precio (no la cotizacion formal de la sesion).
+function pideNuevoEstimado(texto) {
+  const n = norm(texto);
+  if (/personalizada|formal|ejecutivo|sesion|reunion|llamada|cita/.test(n)) return false;
+  // "el precio incluye...?" es una duda para la IA; "cuanto cuesta un apto de 40m2?" si pide estimado.
+  if (esPregunta(texto) && !/cotiz|estimado/.test(n) && !m2EnTexto(texto)) return false;
+  return /cotiz|estimado|presupuesto para|precio|cuanto (cuesta|vale|sale|costaria)|valor (de|del|para)|\b\d+\s*(m2|mt2|mts|metros)\b/.test(n);
+}
 
 function esContinuarSeguimiento(texto) {
   return /^(si|sí),? continuar[.!]*$/.test(norm(texto));

@@ -652,6 +652,24 @@ test("retoma: lead que ya agendó -> saludo y queda en 'agendado' (no repregunta
   assert.equal(r2.edge, "desvio");
 });
 
+test("lead ya agendado que pide cotización con otro metraje: nuevo estimado sin IA (caso Yonathan)", () => {
+  const c = conversacion();
+  c.turno("hola", { leadPrevio: { nombre: "Yonathan Murillo", ciudad: "Bogotá", tipo_proyecto: "Intermedio", presupuesto: "$30",
+    conjunto_o_barrio: "Porto 13", m2: "60", plazo: "Inmediato", correo: "y@x.com", tipo_agendamiento: "llamada" } });
+  assert.equal(c.vars.paso, "agendado");
+  let r = c.turno("Me puedes mandar cotización para apto de 38m2");
+  assert.notEqual(r.edge, "desvio");
+  assert.equal(c.vars.m2, 38);
+  assert.equal(c.vars.paso, "banos"); // 38 m2 cae en 31-44: primero baños
+  r = c.turno("2 baños", { opcion: "b_2" });
+  assert.deepEqual(r.acciones.filter((a) => a.op).map((a) => a.op), ["guardar_lead", "estimado"]);
+  // preguntas sobre la sesión siguen yendo a la IA
+  const c2 = conversacion();
+  c2.turno("hola", { leadPrevio: { nombre: "Ana", ciudad: "Bogotá", tipo_agendamiento: "llamada" } });
+  assert.equal(c2.turno("cuándo me llaman para la cotización personalizada?").edge, "desvio");
+  assert.equal(c2.turno("el precio incluye mano de obra?").edge, "desvio");
+});
+
 test("retoma: datos inválidos de la base se descartan y se vuelven a preguntar", () => {
   const c = conversacion("Pedro");
   const r = c.turno("hola", { leadPrevio: { nombre: "Pedro Gómez", ciudad: "xyz", presupuesto: "no sé" } });
