@@ -349,3 +349,42 @@ Reemplaza para v3 la maquinaria de v2 (`register-followup` / `process-followups`
   - Si la ejecución ya no está `waiting` (por ejemplo, la tomó un humano), cancela sin enviar.
   - Necesita el secret `KAPSO_API_KEY`.
   - Cuando falla un envío, el log guarda solo el código de error de WhatsApp, nunca la respuesta completa (puede traer el teléfono).
+
+## El agente le pide acciones al motor: `solicitud_motor` (2026-11-25)
+
+Problema (caso Yonathan): después del estimado el cliente escribió "Y uno de 42"
+y "Dame la cotización". El motor no lo reconoció, el agente IA respondió "lo
+actualicé" y "te lo preparo" y no pasó nada: el agente no tenía cómo hacerlo.
+
+Arquitectura: si al agente le llega algo que el motor sabe hacer, se lo pide
+al motor. No depende de palabras clave: el agente entiende el pedido con sus
+palabras.
+
+- `SOLICITUDES_MOTOR` en `motor.js` es el catálogo único de lo que el motor
+  sabe hacer: `estimado`, `ver_obra_blanca`, `ver_intermedio`,
+  `ver_remodelacion_total`, `agendar`, `agendar_llamada`,
+  `agendar_reunion_virtual`, `agendar_reunion_presencial`, `pausar_seguimiento`.
+  Cada entrada dice cuándo está disponible y qué hace (la misma lógica de los
+  botones).
+- El agente guarda `solicitud_motor` (y, si cambiaron, `m2`, `banos`,
+  `tipo_proyecto`) con `save_variable`, responde "ya te lo preparo" y llama
+  `complete_task`.
+- Al volver, el motor: (1) pasa los datos guardados por sus propios intérpretes
+  (lo inválido se borra y se vuelve a preguntar); (2) si la solicitud aplica en
+  ese punto la ejecuta; si no (p. ej. agendar antes del estimado) sigue el
+  flujo y deja `ultima_solicitud = "<clave>:no_disponible"`; (3) si cambiaron
+  m², baños o tipo después del estimado, lo rehace solo (`m2_estimado`,
+  `banos_estimado`, `tipo_estimado` guardan con qué se hizo el último).
+- Atajo sin IA: frases comunes después del estimado ("Y uno de 42", "otro de 60
+  m2", "Dame la cotización") las resuelve el motor directo (`m2Suelto`,
+  `pideNuevoEstimado`).
+- Agregar una capacidad = una entrada en `SOLICITUDES_MOTOR` + una línea en
+  `docs/isa-v3-prompt-agente.md`. La prueba "el prompt del agente documenta
+  todas las acciones" falla si se olvida la segunda.
+- El nodo agente pasó a `max_iterations: 4` (guardar datos, guardar la
+  solicitud, responder y cerrar).
+
+Verificado en producción (2026-11-25) invocando `isa3-motor` sin destinatario:
+estimado con m² guardados como texto ("55 metros" → 55, Railway generó estimado
+y detalle), ver paquete, agendar llamada, reunión virtual, agendar antes del
+estimado (no_disponible), pausar, "Y uno de 42" y "Sipp".

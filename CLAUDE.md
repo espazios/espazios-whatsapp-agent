@@ -33,7 +33,7 @@ El flujo es determinístico y la IA solo atiende desvíos. Diseño completo en
 | Workflow "Isa v3 (flujo determinístico + IA)" | Kapso, id `1d9761cc-4333-413a-870d-654fefdeeaec` | Recibe los mensajes y llama al motor |
 | `isa3-motor` | Kapso Function `6a64ffed-b18c-4568-bc13-913ce136f6c8`; fuente en `kapso-functions/isa-v3/motor.js` | Máquina de estados: saludo, 8 datos, filtros de cobertura y presupuesto, estimado, agendamiento. Manda todos los mensajes, guarda los leads en D1 y programa los seguimientos |
 | Intérprete | Nodo decide AI (`claude-haiku-5-5`) | Solo clasifica respuestas de opción mal escritas, con una lista cerrada de etiquetas |
-| Agente de desvíos | Nodo agent, `tool_only`; prompt en `docs/isa-v3-prompt-agente.md` | Responde preguntas fuera del flujo y devuelve el control |
+| Agente de desvíos | Nodo agent, `tool_only`, `max_iterations` 4; prompt en `docs/isa-v3-prompt-agente.md` | Responde preguntas fuera del flujo y devuelve el control. Si el cliente pide algo que el motor sabe hacer, se lo pide con `solicitud_motor` (catálogo `SOLICITUDES_MOTOR` en `motor.js`) |
 | `isa3-seguimientos` | Kapso Function pública `d781d5ab-70c8-4230-ae40-5dd2c1791b21`; se genera desde `motor.js` con `kapso-functions/isa-v3/build-seguimientos.mjs` | Envía los seguimientos vencidos: 10 min, 4 h y 8 h hábiles; texto dentro de 24 h, plantilla aprobada fuera |
 | Servidor de herramientas | Railway, `src/tools-server.ts`, se despliega con cada push a `master` | Genera las imágenes del estimado y del detalle (lee la hoja de Google) y despierta `isa3-seguimientos` cada minuto |
 
