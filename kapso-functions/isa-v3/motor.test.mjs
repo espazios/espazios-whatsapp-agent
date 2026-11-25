@@ -974,3 +974,69 @@ test("el prompt del agente documenta todas las acciones de solicitud_motor", () 
   const claves = vm.runInContext("Object.keys(SOLICITUDES_MOTOR)", sandbox);
   for (const k of claves) assert.ok(prompt.includes(k), `falta ${k} en docs/isa-v3-prompt-agente.md`);
 });
+
+test("caso Yonathan 3: 'Yeah' al confirmar el nombre no se guarda como nombre; va al agente, que le pide al motor", () => {
+  const c = conversacion("Yonathan Murillo");
+  c.turno("Hola");
+  let r = c.turno("Yeah");
+  assert.equal(r.edge, "desvio");
+  assert.equal(c.vars.nombre, undefined);
+  assert.match(c.vars.pregunta_pendiente, /Hablo con Yonathan Murillo/);
+  // el agente confirma
+  r = M.procesar({ ...c.vars, solicitud_motor: "confirmar_nombre_perfil" }, null, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.nombre, "Yonathan Murillo");
+  assert.equal(r.vars.paso, "ciudad");
+  assert.match(textos(r), /un gusto, Yonathan!/);
+  assert.match(textos(r), /Ley 1581/);
+  // "es mi esposa": pide el nombre
+  r = M.procesar({ ...c.vars, solicitud_motor: "pedir_nombre" }, null, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.paso, "nombre");
+  assert.match(textos(r), /Con quién tengo el gusto/);
+  // el agente guarda otro nombre: se valida y se saluda
+  r = M.procesar({ ...c.vars, nombre: "carlos perez" }, null, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.nombre, "Carlos Perez");
+  assert.match(textos(r), /un gusto, Carlos!/);
+  // nombre invalido guardado por la IA: se descarta y vuelve a preguntar
+  r = M.procesar({ ...c.vars, nombre: "Yeah?" }, null, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.nombre, null);
+  assert.equal(r.vars.paso, "nombre_confirmar");
+  // lo obvio lo sigue resolviendo el motor sin IA
+  for (const [t, esperado] of [["si", "Yonathan Murillo"], ["Claro", "Yonathan Murillo"], ["no, soy Andrea", "Andrea"], ["me llamo Pedro", "Pedro"]]) {
+    const c2 = conversacion("Yonathan Murillo");
+    c2.turno("Hola");
+    c2.turno(t);
+    assert.equal(c2.vars.nombre, esperado, t);
+  }
+});
+
+test("ya agendado: el estimado nuevo no vuelve a ofrecer la sesion y conserva el agendamiento", () => {
+  const ag = { paso: "agendado", paso_agenda: "agendado", tipo_agendamiento: "reunion_presencial", turno: 20, nombre: "Ana Ruiz", ciudad: "Bogotá",
+    tipo_proyecto: "Intermedio", presupuesto: "$40", conjunto_o_barrio: "Centrik Town", m2: 41, banos: 2, plazo: "Inmediato", correo: "a@x.co",
+    estimado_enviado: true, aviso_datos: true, m2_estimado: 41, banos_estimado: 2, tipo_estimado: "Intermedio" };
+  let r = M.procesar(ag, { texto: "Dame una cotización para apto de 45m2" }, { perfil: "", ahora: AHORA });
+  const est = r.acciones.find((a) => a.op === "estimado");
+  assert.equal(est.sinAgendar, true);
+  assert.equal(r.vars.paso, "agendado");
+  assert.equal(r.vars.paso_agenda, "agendado");
+  // si cae en la banda de baños, pregunta y luego estima sin ofrecer la sesion
+  r = M.procesar({ ...ag, paso: "agendado_link", paso_agenda: "agendado_link" }, { texto: "y uno de 35" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.paso, "banos");
+  const v2 = { ...ag, paso: "agendado_link", paso_agenda: "agendado_link", ...r.vars };
+  r = M.procesar(v2, { texto: "2 baños", opcionId: "b_2" }, { perfil: "", ahora: AHORA });
+  assert.equal(r.acciones.find((a) => a.op === "estimado").sinAgendar, true);
+  assert.equal(r.vars.paso, "agendado_link");
+  // mensajes: sin boton ni pregunta de agendar
+  const m = M.mensajesEstimado({ ...ag, m2: 45 }, { imageUrl: "u1", paqueteElegido: { imageUrl: "u2" } }, true);
+  assert.ok(!JSON.stringify(m.mensajes).includes("agendar"));
+  assert.ok(!/agendamos|Ejecutivo/.test(JSON.stringify(m.mensajes)));
+  const todos = M.mensajeDetalle({ id: "total", visible: "Remodelación Total", boton: "Ver Remod. Total" }, "u3", ["obra", "intermedio", "total"], false, true);
+  assert.equal(todos.tipo, "imagen");
+  // boton "Ver ..." de un mensaje anterior estando agendado: muestra el detalle (antes iba a la IA)
+  r = M.procesar(ag, { texto: "Ver Obra Blanca", opcionId: "ver_obra" }, { perfil: "", ahora: AHORA });
+  assert.deepEqual(r.acciones.map((a) => a.op), ["detalle"]);
+  // sin haber agendado, el estimado sigue ofreciendo la sesion
+  const post = { ...ag, paso: "post_estimado", paso_agenda: null, tipo_agendamiento: undefined };
+  r = M.procesar(post, { texto: "y uno de 50" }, { perfil: "", ahora: AHORA });
+  assert.ok(!r.acciones.find((a) => a.op === "estimado").sinAgendar);
+  assert.equal(r.vars.paso, "post_estimado");
+});

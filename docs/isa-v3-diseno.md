@@ -388,3 +388,22 @@ Verificado en producción (2026-11-25) invocando `isa3-motor` sin destinatario:
 estimado con m² guardados como texto ("55 metros" → 55, Railway generó estimado
 y detalle), ver paquete, agendar llamada, reunión virtual, agendar antes del
 estimado (no_disponible), pausar, "Y uno de 42" y "Sipp".
+
+### Nombre, repeticiones y estimados después de agendar (2026-11-25, tarde)
+
+Prueba de Yonathan como cliente nuevo:
+- **"Yeah" quedó como su nombre.** En "Hablo con <perfil>?" el motor aceptaba
+  cualquier palabra suelta como nombre. Ahora el motor solo resuelve lo obvio
+  (sí/no reconocibles, "me llamo X", "no, soy X"); lo demás va al agente, que
+  usa las solicitudes `confirmar_nombre_perfil` o `pedir_nombre`, o guarda
+  `nombre` si el cliente dio otro. El motor valida ese nombre
+  (`nombrePerfilValido`, sin sí/no ni preguntas) y saluda con "un gusto, X!".
+  En estos casos el agente no le escribe al cliente: el motor responde.
+- **Video repetido.** Dos mensajes seguidos ("tienes videos?" + "De mi
+  proyecto") hicieron que el agente mandara el mismo video dos veces. Regla
+  nueva en el prompt: no repetir lo que ya respondió en su mensaje anterior.
+- **Estimado nuevo estando agendado.** Volvía a ofrecer "agendamos tu sesión".
+  Ahora, si estaba en `agendado` o `agendado_link`, se guarda `agenda_previa`,
+  el estimado sale sin botón ni pregunta de agendar (`sinAgendar`) y la
+  conversación vuelve a su estado de agendado. Los botones "Ver <paquete>" de
+  mensajes anteriores funcionan en cualquier punto después del estimado.

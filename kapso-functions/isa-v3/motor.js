@@ -849,6 +849,10 @@ function procesar(varsIn, entrada, ctx) {
     // No existe o no aplica en este punto (por ejemplo, agendar antes del
     // estimado): se sigue el flujo normal con la pregunta pendiente.
     if (nombre) asignar("ultima_solicitud", `${nombre}:no_disponible`);
+    // El agente guardo el nombre que dio el cliente: se saluda y se sigue.
+    if ((varsIn.paso === "nombre_confirmar" || varsIn.paso === "nombre") && v.nombre && v.nombre !== varsIn.nombre) {
+      return finalizar(v, set, acciones, ctx, { intro: `un gusto, ${v.nombre.split(" ")[0]}!` });
+    }
   }
   if (!entrada) {
     const p = siguientePaso(v);
@@ -905,9 +909,16 @@ function procesar(varsIn, entrada, ctx) {
       asignar("m2", m2);
       asignar("banos", null);
     }
+    if (PASOS_YA_AGENDADO.has(v.paso)) asignar("agenda_previa", v.paso);
     asignar("estimado_enviado", false);
     asignar("paso_agenda", null);
     return finalizar(v, set, acciones, ctx, { intro: "claro!" });
+  }
+
+  // Boton "Ver <paquete>" de un mensaje anterior (por ejemplo, ya agendado)
+  if (opcion && /^ver_/.test(opcion) && v.estimado_enviado && !v.cerrado) {
+    const paquete = PAQUETES.find((x) => x.id === opcion.slice(4));
+    if (paquete) return { vars: set, acciones: [...acciones, { op: "detalle", paquete: paquete.id }], edge: "esperar" };
   }
 
   // Conversacion ya cerrada o agendada: todo lo que escriba lo atiende la IA
@@ -999,6 +1010,14 @@ function finalizar(v, set, acciones, ctx, opts) {
   if (p === "estimado") {
     acciones.push({ tipo: "texto", body: `${opts.intro ? opts.intro + " " : ""}gracias! dame un momento mientras preparo tu estimado ilustrativo ⏳`.trim() });
     acciones.push({ op: "guardar_lead" });
+    if (v.agenda_previa) {
+      // Ya habia agendado: se manda el estimado sin volver a ofrecer la sesion.
+      acciones.push({ op: "estimado", sinAgendar: true });
+      asignar("paso", v.agenda_previa);
+      asignar("paso_agenda", v.agenda_previa);
+      asignar("agenda_previa", null);
+      return { vars: set, acciones, edge: "esperar" };
+    }
     acciones.push({ op: "estimado" });
     asignar("paso", "post_estimado");
     return { vars: set, acciones, edge: "esperar" };
@@ -1029,8 +1048,9 @@ function interpretar(paso, texto, opcion, entrada, v, ctx) {
         if (nombre) return { ok: true, set: { nombre }, intro: `uy, disculpa! un gusto, ${nombre.split(" ")[0]}.` };
         return { ok: true, set: { nombre_rechazado: true }, intro: "uy, disculpa!" };
       }
-      const libre = !pregunta ? interpretarNombreLibre(texto) : null;
-      if (libre) return { ok: true, set: { nombre: libre }, intro: `un gusto, ${libre.split(" ")[0]}!` };
+      // Lo demas ("Yeah", "Carlos", "es mi esposa"...) lo entiende el agente IA y
+      // le pide al motor confirmar_nombre_perfil / pedir_nombre o guarda el nombre
+      // (caso Yonathan 2026-11-25: "Yeah" quedo como su nombre).
       return { desvio: true };
     }
     case "nombre": {
@@ -1253,13 +1273,13 @@ function interpretarPostEstimado(texto, opcion, v) {
 }
 
 // Mensajes despues de recibir la respuesta de Railway
-function mensajesEstimado(v, resp) {
+function mensajesEstimado(v, resp, sinAgendar) {
   const nombre = v.nombre ? v.nombre.split(" ")[0] : "";
   const out = [{ tipo: "imagen", link: resp.imageUrl, caption: `${nombre ? nombre + ", a" : "A"}quí tienes tu estimado ilustrativo para ${v.m2} m² 👇` }];
   const elegido = PAQUETES.find((p) => p.visible === v.tipo_proyecto);
   if (elegido && resp.paqueteElegido && resp.paqueteElegido.imageUrl) {
     const vistos = [elegido.id];
-    out.push(mensajeDetalle(elegido, resp.paqueteElegido.imageUrl, vistos, true));
+    out.push(mensajeDetalle(elegido, resp.paqueteElegido.imageUrl, vistos, true, sinAgendar));
     return { mensajes: out, vistos };
   }
   out.push({
@@ -1268,17 +1288,27 @@ function mensajesEstimado(v, resp) {
     boton: "Ver opciones",
     filas: [
       ...PAQUETES.map((p) => ({ id: `ver_${p.id}`, title: p.visible })),
-      { id: "agendar", title: "Agendar sesión", description: "Con un Ejecutivo Comercial" },
+      ...(sinAgendar ? [] : [{ id: "agendar", title: "Agendar sesión", description: "Con un Ejecutivo Comercial" }]),
     ],
   });
   return { mensajes: out, vistos: [] };
 }
 
-function mensajeDetalle(paquete, imageUrl, vistos, esElegido) {
+function mensajeDetalle(paquete, imageUrl, vistos, esElegido, sinAgendar) {
   const faltan = PAQUETES.filter((p) => !vistos.includes(p.id));
   const intro = esElegido
     ? `y este es el detalle de *${paquete.visible}*, el paquete que elegiste 😊`
     : `este es el detalle de *${paquete.visible}* 😊`;
+  if (sinAgendar) {
+    // Ya agendo: solo se ofrecen los paquetes que falten por ver.
+    if (!faltan.length) return { tipo: "imagen", link: imageUrl, caption: intro };
+    return {
+      tipo: "botones",
+      headerImage: imageUrl,
+      body: `${intro}\n\n*Te gustaría ver también ${faltan.map((p) => p.visible).join(" o ")}?*`,
+      botones: faltan.map((p) => ({ id: `ver_${p.id}`, title: p.boton })),
+    };
+  }
   const pregunta = faltan.length
     ? `Te gustaría ver también ${faltan.map((p) => p.visible).join(" o ")}, o agendamos tu sesión con un Ejecutivo Comercial?`
     : "Te gustaría que agendemos tu cotización personalizada con un Ejecutivo Comercial?";
@@ -1382,6 +1412,7 @@ function m2EnTexto(texto) {
 // aplica en el punto actual y la ejecuta con la misma logica de los botones.
 // Agregar una capacidad = agregar una entrada aqui y en el prompt del agente
 // (una prueba verifica que el prompt las mencione todas).
+const PASOS_YA_AGENDADO = new Set(["agendado", "agendado_link"]);
 const conEstimado = (v) => !!v.estimado_enviado && !v.cerrado;
 const verPaquete = (id) => ({ disponible: conEstimado, ejecutar: () => ({ acciones: [{ op: "detalle", paquete: id }], edge: "esperar" }) });
 const agendarCon = (opcionId) => ({
@@ -1395,6 +1426,7 @@ const SOLICITUDES_MOTOR = {
       set: {
         estimado_enviado: false,
         paso_agenda: null,
+        agenda_previa: PASOS_YA_AGENDADO.has(v.paso) ? v.paso : v.agenda_previa || null,
         // Otro apartamento con los mismos banos guardados: se vuelven a preguntar.
         ...(v.m2_estimado && v.m2 && v.m2 !== v.m2_estimado && v.banos === v.banos_estimado ? { banos: null } : {}),
       },
@@ -1408,6 +1440,14 @@ const SOLICITUDES_MOTOR = {
   agendar_reunion_virtual: agendarCon("ag_virtual"),
   agendar_reunion_presencial: agendarCon("ag_presencial"),
   pausar_seguimiento: { disponible: (v) => PASOS_SEGUIMIENTO.has(v.paso), ejecutar: () => ({ set: { seguimiento_pausado: true }, edge: "esperar" }) },
+  confirmar_nombre_perfil: {
+    disponible: (v) => v.paso === "nombre_confirmar" && !!v.nombre_perfil,
+    ejecutar: (v) => ({ set: { nombre: v.nombre_perfil }, intro: `un gusto, ${v.nombre_perfil.split(" ")[0]}!` }),
+  },
+  pedir_nombre: {
+    disponible: (v) => v.paso === "nombre_confirmar" || v.paso === "nombre",
+    ejecutar: () => ({ set: { nombre: null, nombre_rechazado: true }, intro: "uy, disculpa!" }),
+  },
 };
 function solicitudPendiente(v) {
   if (v.solicitud_motor) {
@@ -1434,6 +1474,11 @@ function sanearDatosAgente(v) {
   }
   if (hay(v.tipo_proyecto) && !Object.values(TIPOS).includes(v.tipo_proyecto)) c.tipo_proyecto = interpretarTipo(String(v.tipo_proyecto), null);
   if (hay(v.ciudad) && !CIUDADES_CANONICAS.has(v.ciudad)) c.ciudad = buscarCiudad(String(v.ciudad));
+  if (hay(v.nombre)) {
+    const n = nombrePerfilValido(String(v.nombre));
+    const valido = n && !esAfirmacion(n) && !esNegacion(n) && !esPregunta(String(v.nombre)) ? n : null;
+    if (valido !== v.nombre) c.nombre = valido;
+  }
   if (hay(v.correo) && interpretarCorreo(String(v.correo)) !== v.correo) c.correo = interpretarCorreo(String(v.correo));
   return c;
 }
@@ -1819,7 +1864,7 @@ async function handler(request, env) {
           nuevasVars.estimado_enviado = false;
           continue;
         }
-        const { mensajes, vistos } = mensajesEstimado(estado, resp);
+        const { mensajes, vistos } = mensajesEstimado(estado, resp, !!a.sinAgendar);
         for (const m of mensajes) {
           await enviarOLog(m);
           await new Promise((r) => setTimeout(r, 1500)); // orden: imagen general antes del detalle
@@ -1840,7 +1885,7 @@ async function handler(request, env) {
           continue;
         }
         const vistos = Array.from(new Set([...(estado.paquetes_vistos || []), paquete.id]));
-        await enviarOLog(mensajeDetalle(paquete, resp.imageUrl, vistos, false));
+        await enviarOLog(mensajeDetalle(paquete, resp.imageUrl, vistos, false, PASOS_YA_AGENDADO.has(estado.paso)));
         nuevasVars.paquetes_vistos = vistos;
       }
     } catch (err) {
