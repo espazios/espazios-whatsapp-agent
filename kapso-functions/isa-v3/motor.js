@@ -825,21 +825,30 @@ function procesar(varsIn, entrada, ctx) {
     // Si llego un mensaje nuevo mientras interpretaba, se procesa ese.
   }
 
-  if (!entrada && (v.pedir_estimado === true || String(v.pedir_estimado).toLowerCase() === "true")) {
-    // El agente de desvios entendio que el cliente quiere (otra vez) el
-    // estimado, quizas con otros m2/banos, y lo pidio con save_variable.
-    asignar("pedir_estimado", false);
-    const m2 = Math.round(Number(String(v.m2 || "").replace(",", ".")));
-    if (!(m2 >= 15 && m2 <= 400)) asignar("m2", null);
-    else if (m2 !== v.m2) asignar("m2", m2);
-    const banos = Number(v.banos);
-    if (v.banos !== null && v.banos !== undefined && banos !== 1 && banos !== 2) asignar("banos", null);
-    else if (v.banos !== undefined && v.banos !== null && banos !== v.banos) asignar("banos", banos);
-    // Otro apartamento con los mismos banos guardados: se vuelven a preguntar.
-    if (v.m2_estimado && v.m2 && v.m2 !== v.m2_estimado && v.banos === v.banos_estimado) asignar("banos", null);
-    asignar("estimado_enviado", false);
-    asignar("paso_agenda", null);
-    return finalizar(v, set, acciones, ctx, { intro: "" });
+  // Volviendo del agente IA: aplica lo que haya guardado con save_variable
+  // (datos y solicitud_motor). Ver SOLICITUDES_MOTOR.
+  if (!entrada) {
+    for (const [k, val] of Object.entries(sanearDatosAgente(v))) asignar(k, val);
+    const pedida = solicitudPendiente(v);
+    if (v.solicitud_motor) asignar("solicitud_motor", null);
+    if (v.pedir_estimado) asignar("pedir_estimado", false);
+    // Si cambio un dato que define el estimado ya enviado, se rehace solo.
+    const cambioEstimado = v.estimado_enviado && v.m2_estimado !== undefined &&
+      (v.m2 !== v.m2_estimado || (v.banos_estimado !== undefined && v.banos && v.banos !== v.banos_estimado) ||
+        (v.tipo_estimado !== undefined && v.tipo_proyecto !== v.tipo_estimado));
+    const nombre = pedida || (cambioEstimado ? "estimado" : null);
+    const solicitud = nombre ? SOLICITUDES_MOTOR[nombre] : null;
+    if (solicitud && solicitud.disponible(v)) {
+      asignar("ultima_solicitud", nombre);
+      const r = solicitud.ejecutar(v, ctx);
+      for (const [k, val] of Object.entries(r.set || {})) asignar(k, val);
+      acciones.push(...(r.acciones || []));
+      if (r.edge) return { vars: set, acciones, edge: r.edge };
+      return finalizar(v, set, acciones, ctx, { intro: r.intro !== undefined ? r.intro : "" });
+    }
+    // No existe o no aplica en este punto (por ejemplo, agendar antes del
+    // estimado): se sigue el flujo normal con la pregunta pendiente.
+    if (nombre) asignar("ultima_solicitud", `${nombre}:no_disponible`);
   }
   if (!entrada) {
     const p = siguientePaso(v);
@@ -1367,6 +1376,68 @@ function m2EnTexto(texto) {
 }
 
 // Pide ver un estimado / cotizacion / precio (no la cotizacion formal de la sesion).
+// ---- Lo que el agente IA le puede pedir al motor ---------------------------
+// El agente guarda solicitud_motor con una de estas claves (y, si aplica, los
+// datos nuevos con save_variable). Al volver, el motor revisa si la accion
+// aplica en el punto actual y la ejecuta con la misma logica de los botones.
+// Agregar una capacidad = agregar una entrada aqui y en el prompt del agente
+// (una prueba verifica que el prompt las mencione todas).
+const conEstimado = (v) => !!v.estimado_enviado && !v.cerrado;
+const verPaquete = (id) => ({ disponible: conEstimado, ejecutar: () => ({ acciones: [{ op: "detalle", paquete: id }], edge: "esperar" }) });
+const agendarCon = (opcionId) => ({
+  disponible: conEstimado,
+  ejecutar: (v, ctx) => interpretar("tipo_agendamiento", "", opcionId, { tieneMedia: false }, v, ctx),
+});
+const SOLICITUDES_MOTOR = {
+  estimado: {
+    disponible: (v) => !v.cerrado,
+    ejecutar: (v) => ({
+      set: {
+        estimado_enviado: false,
+        paso_agenda: null,
+        // Otro apartamento con los mismos banos guardados: se vuelven a preguntar.
+        ...(v.m2_estimado && v.m2 && v.m2 !== v.m2_estimado && v.banos === v.banos_estimado ? { banos: null } : {}),
+      },
+    }),
+  },
+  ver_obra_blanca: verPaquete("obra"),
+  ver_intermedio: verPaquete("intermedio"),
+  ver_remodelacion_total: verPaquete("total"),
+  agendar: { disponible: conEstimado, ejecutar: () => ({ set: { paso_agenda: "tipo_agendamiento" } }) },
+  agendar_llamada: agendarCon("ag_llamada"),
+  agendar_reunion_virtual: agendarCon("ag_virtual"),
+  agendar_reunion_presencial: agendarCon("ag_presencial"),
+  pausar_seguimiento: { disponible: (v) => PASOS_SEGUIMIENTO.has(v.paso), ejecutar: () => ({ set: { seguimiento_pausado: true }, edge: "esperar" }) },
+};
+function solicitudPendiente(v) {
+  if (v.solicitud_motor) {
+    const k = norm(v.solicitud_motor).replace(/[\s-]+/g, "_");
+    return k in SOLICITUDES_MOTOR ? k : k || null;
+  }
+  if (v.pedir_estimado === true || String(v.pedir_estimado).toLowerCase() === "true") return "estimado";
+  return null;
+}
+// Los datos que guarda el agente pasan por los mismos interpretes del motor;
+// lo que no se entienda se borra y el flujo lo vuelve a preguntar.
+const CIUDADES_CANONICAS = new Set([...Object.values(ALIAS_CIUDAD), "Otra"]);
+function sanearDatosAgente(v) {
+  const c = {};
+  const hay = (x) => x !== undefined && x !== null && x !== "";
+  if (hay(v.m2) && !(Number.isInteger(v.m2) && v.m2 >= 15 && v.m2 <= 400)) {
+    const m = interpretarM2(String(v.m2));
+    c.m2 = m && m.valor ? m.valor : null;
+  }
+  if (hay(v.banos) && v.banos !== 1 && v.banos !== 2) c.banos = interpretarBanos(String(v.banos), null);
+  if (hay(v.presupuesto) && !/^\$\d+(,\d)?$/.test(String(v.presupuesto))) {
+    const p = interpretarPresupuesto(String(v.presupuesto));
+    c.presupuesto = p && p.valor ? formatoMillones(p.valor) : null;
+  }
+  if (hay(v.tipo_proyecto) && !Object.values(TIPOS).includes(v.tipo_proyecto)) c.tipo_proyecto = interpretarTipo(String(v.tipo_proyecto), null);
+  if (hay(v.ciudad) && !CIUDADES_CANONICAS.has(v.ciudad)) c.ciudad = buscarCiudad(String(v.ciudad));
+  if (hay(v.correo) && interpretarCorreo(String(v.correo)) !== v.correo) c.correo = interpretarCorreo(String(v.correo));
+  return c;
+}
+
 const PASOS_REESTIMAR = new Set(["agendado", "agendado_link", "post_estimado", "duda_o_agendar"]);
 // "y uno de 42", "otro de 55", "para 60", "42" (sin unidad) despues del estimado.
 function m2Suelto(texto) {
@@ -1756,6 +1827,7 @@ async function handler(request, env) {
         nuevasVars.estimado_enviado = true;
         nuevasVars.m2_estimado = estado.m2;
         nuevasVars.banos_estimado = estado.banos || null;
+        nuevasVars.tipo_estimado = estado.tipo_proyecto;
         nuevasVars.paquetes_vistos = vistos;
       } else if (a.op === "detalle") {
         const paquete = PAQUETES.find((p) => p.id === a.paquete);

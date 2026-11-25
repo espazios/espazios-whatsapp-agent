@@ -921,3 +921,56 @@ test("el agente pide el estimado con save_variable (pedir_estimado) y el motor l
   assert.equal(r.vars.m2, null);
   assert.equal(r.vars.paso, "m2");
 });
+
+const POST = { paso: "duda_o_agendar", paso_agenda: "duda_o_agendar", turno: 9, nombre: "Ana Ruiz", ciudad: "Bogotá", tipo_proyecto: "Intermedio", presupuesto: "$40",
+  conjunto_o_barrio: "Hayuelos", m2: 50, plazo: "Inmediato", correo: "a@x.co", estimado_enviado: true, aviso_datos: true,
+  m2_estimado: 50, banos_estimado: null, tipo_estimado: "Intermedio" };
+const pedir = (vars, solicitud) => M.procesar({ ...vars, solicitud_motor: solicitud }, null, { perfil: "", ahora: AHORA });
+
+test("solicitud_motor: el agente puede pedir cualquier accion del catalogo y el motor la ejecuta", () => {
+  let r = pedir(POST, "ver_remodelacion_total");
+  assert.deepEqual(r.acciones.map((a) => a.op), ["detalle"]);
+  assert.equal(r.acciones[0].paquete, "total");
+  r = pedir(POST, "agendar");
+  assert.equal(r.vars.paso, "tipo_agendamiento");
+  r = pedir(POST, "agendar llamada"); // tolera espacios
+  assert.equal(r.vars.paso, "llamada_dia");
+  r = pedir(POST, "agendar_reunion_virtual");
+  assert.ok(r.acciones.some((a) => a.tipo === "cta"));
+  r = pedir(POST, "pausar_seguimiento");
+  assert.equal(r.vars.seguimiento_pausado, true);
+  assert.equal(r.acciones.length, 0);
+  r = pedir(POST, "estimado");
+  assert.ok(r.acciones.some((a) => a.op === "estimado"));
+  assert.equal(r.vars.solicitud_motor, null);
+});
+
+test("solicitud_motor: lo que no aplica en ese punto no se ejecuta (agendar antes del estimado) y el flujo sigue", () => {
+  const antes = { paso: "m2", turno: 5, nombre: "Ana Ruiz", ciudad: "Bogotá", tipo_proyecto: "Intermedio", presupuesto: "$40", conjunto_o_barrio: "Hayuelos", aviso_datos: true };
+  let r = pedir(antes, "agendar_llamada");
+  assert.equal(r.vars.ultima_solicitud, "agendar_llamada:no_disponible");
+  assert.equal(r.vars.paso, "m2");
+  r = pedir(antes, "inventada");
+  assert.equal(r.vars.ultima_solicitud, "inventada:no_disponible");
+});
+
+test("datos guardados por el agente: se validan con los interpretes del motor y, si cambian el estimado, se rehace", () => {
+  // m2 en texto y tipo mal escrito: se normalizan; cambio de m2 tras el estimado -> nuevo estimado
+  let r = M.procesar({ ...POST, m2: "60 metros", tipo_proyecto: "remodelacion total" }, null, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.m2, 60);
+  assert.equal(r.vars.tipo_proyecto, "Remodelación Total");
+  assert.ok(r.acciones.some((a) => a.op === "estimado"));
+  // basura: se borra y el flujo lo vuelve a preguntar
+  r = M.procesar({ ...POST, paso: "m2", estimado_enviado: false, m2: "no se", m2_estimado: undefined }, null, { perfil: "", ahora: AHORA });
+  assert.equal(r.vars.m2, null);
+  assert.equal(r.vars.paso, "m2");
+  // sin cambios ni solicitud: retoma normal (pregunta pendiente)
+  r = M.procesar(POST, null, { perfil: "", ahora: AHORA });
+  assert.ok(!r.acciones.some((a) => a.op === "estimado"));
+});
+
+test("el prompt del agente documenta todas las acciones de solicitud_motor", () => {
+  const prompt = readFileSync(new URL("../../docs/isa-v3-prompt-agente.md", import.meta.url), "utf8");
+  const claves = vm.runInContext("Object.keys(SOLICITUDES_MOTOR)", sandbox);
+  for (const k of claves) assert.ok(prompt.includes(k), `falta ${k} en docs/isa-v3-prompt-agente.md`);
+});
