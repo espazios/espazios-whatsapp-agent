@@ -114,14 +114,26 @@ function pideHumano(texto) {
     /\bno (quiero|me gusta) (hablar con )?(un )?(bot|robot|maquina)\b/.test(n);
 }
 
-function esAfirmacion(texto) {
+// Se prueba el texto tal cual y con letras repetidas colapsadas, para
+// aceptar "Sipp", "Siii", "Nooo", "Clarooo" (caso Nidia, 2026-11-25:
+// "Sipp" quedo guardado como su nombre).
+function variantesSiNo(texto) {
   const n = norm(texto).replace(/[.!,]/g, "");
-  return /^(si+|s|sip|sii|claro|correcto|exacto|asi es|afirmativo|dale|de una|ok|okay|okey|listo|por supuesto|obvio|yes|ese soy yo|esa soy yo|soy yo|el mismo|la misma|con el|con ella)\b/.test(n);
+  return [n, n.replace(/([a-z])\1+/g, "$1")];
+}
+function esAfirmacion(texto) {
+  return variantesSiNo(texto).some((n) => /^(si+|s|sip|sep|seh|aja|claro|correcto|exacto|asi es|eso es|afirmativo|dale|de una|ok|okay|okey|listo|por supuesto|obvio|yes|ese soy yo|esa soy yo|soy yo|el mismo|la misma|con el|con ella)\b/.test(n));
 }
 
 function esNegacion(texto) {
-  const n = norm(texto).replace(/[.!,]/g, "");
-  return /^(no|nop|nel|negativo|para nada|todavia no|aun no|ahorita no|no gracias)\b/.test(n);
+  return variantesSiNo(texto).some((n) => /^(no|nop|nel|negativo|para nada|todavia no|aun no|ahorita no|no gracias)\b/.test(n));
+}
+
+// Un nombre guardado que en realidad era un "si"/"no" (leads previos al
+// arreglo): se reemplaza por el nombre del perfil, o se descarta.
+function repararNombre(v) {
+  if (!v.nombre || !(esAfirmacion(v.nombre) || esNegacion(v.nombre))) return null;
+  return v.nombre_perfil && !esAfirmacion(v.nombre_perfil) ? v.nombre_perfil : "";
 }
 
 function titulo(s) {
@@ -744,6 +756,8 @@ function procesar(varsIn, entrada, ctx) {
   const acciones = [];
   const asignar = (k, val) => { v[k] = val; set[k] = val; };
   asignar("turno", Number(v.turno || 0) + 1);
+  const nombreReparado = repararNombre(v);
+  if (nombreReparado !== null) asignar("nombre", nombreReparado || null);
 
   // ---- 1) Primer mensaje de la conversacion: saludo ------------------------
   if (!v.paso) {
@@ -1456,6 +1470,8 @@ async function estadoEjecucion(env, executionId) {
 // Decide que mandar para un seguimiento vencido. Puro (sin red), para los tests.
 function mensajesSeguimiento(fila, ahora) {
   const v = JSON.parse(fila.vars || "{}");
+  const nombreReparado = repararNombre(v);
+  if (nombreReparado !== null) v.nombre = nombreReparado || null;
   const intento = Number(fila.intento || 0) + 1;
   const ultimoCliente = fila.ultimo_cliente_en ? Date.parse(fila.ultimo_cliente_en) : 0;
   const dentro24h = ahora.getTime() - ultimoCliente < 23.5 * 3600000;

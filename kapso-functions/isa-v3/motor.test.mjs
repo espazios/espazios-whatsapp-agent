@@ -1,4 +1,4 @@
-// Tests del motor de Isa v3. Correr con: node --test kapso-functions/isa-v3/
+// Tests del motor de Isa v3. Correr con: node --test kapso-functions/isa-v3/*.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -849,4 +849,32 @@ test("nombres de tablas: usa la vieja hasta que se renombra, luego la nueva aunq
   db.raw.exec("CREATE TABLE isa3_seguimientos (id_lead TEXT)"); // algo viejo la vuelve a crear
   await S.actualizarSeguimiento(env, { ...base, idLead: "3" });
   assert.equal(db.raw.prepare("select count(*) n from seguimientos").get().n, 3);
+});
+
+test("caso Nidia: 'Sipp' es un sí, no un nombre; y se repara un nombre mal guardado", () => {
+  const c = conversacion("nidia cardenas00");
+  c.turno("Hola Isa de Espazios, quiero iniciar con la cotización.");
+  const r = c.turno("Sipp");
+  assert.equal(c.vars.nombre, "Nidia Cardenas");
+  assert.match(textos(r), /un gusto, Nidia!/);
+  for (const si of ["Siii", "sip", "Clarooo", "Sí señora", "Aja"]) {
+    const c2 = conversacion("Ana Ruiz");
+    c2.turno("hola");
+    c2.turno(si);
+    assert.equal(c2.vars.nombre, "Ana Ruiz", si);
+  }
+  for (const nombre of ["Simón", "Sonia", "Noemí"]) {
+    const c3 = conversacion("");
+    c3.turno("hola");
+    c3.turno(nombre);
+    assert.equal(c3.vars.nombre, nombre, nombre);
+  }
+  // Lead que ya quedó con nombre "Sipp": el siguiente turno lo corrige
+  const viejo = { paso: "presupuesto", turno: 4, nombre: "Sipp", nombre_perfil: "Nidia Cardenas", ciudad: "Bogotá", tipo_proyecto: "Remodelación Total", aviso_datos: true };
+  const r2 = M.procesar(viejo, { texto: "25 millones" }, { perfil: "", ahora: AHORA });
+  assert.equal(r2.vars.nombre, "Nidia Cardenas");
+  // y el seguimiento tampoco usa "Sipp"
+  const fila = { paso: "presupuesto", intento: 0, ultimo_cliente_en: "2026-11-24T15:00:00Z", vars: JSON.stringify(viejo) };
+  const s = clonar(S.mensajesSeguimiento(fila, new Date("2026-11-24T15:10:00Z")));
+  assert.match(s.mensajes[0].body, /^Nidia, sigo por aquí pendiente/);
 });
